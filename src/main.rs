@@ -12,6 +12,14 @@ use sdl2::keyboard::Keycode;
 
 use docopt::Docopt;
 
+mod cpu;
+mod screen;
+mod keyboard;
+
+use cpu::Cpu;
+use screen::Screen;
+use keyboard::Keyboard;
+
 const FRAME_NS: u32 = 1000000000 / 60; // 60Hz
 const FPS_REPORT_INTERVAL: u64 = 100000; // Frames to wait before reporting FPS
 
@@ -36,15 +44,6 @@ struct Args {
   flag_zoom: usize,
   flag_verbose: bool,
 }
-
-mod screen;
-use screen::Screen;
-
-mod cpu;
-use cpu::Cpu;
-
-mod keyboard;
-use keyboard::Keyboard;
 
 fn main() {
   // Process args
