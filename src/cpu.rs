@@ -93,9 +93,7 @@ impl<'a> Cpu<'a> {
   }
 
   pub fn load_rom(&mut self, rom: &[u8]) {
-    for i in 0..rom.len() {
-      self.ram[i + 0x200] = rom[i];
-    }
+    self.ram[0x200..0x200 + rom.len()].copy_from_slice(&rom);
   }
 
   pub fn down_key(&mut self, key: u8) {
