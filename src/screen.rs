@@ -14,7 +14,7 @@ pub struct Screen<'a> {
 }
 
 impl<'a> Screen<'a> {
-  pub fn new(sdl_context: &Sdl, zoom: usize) -> Screen<'a> {
+  pub fn new(sdl_context: &Sdl, zoom: usize, vsync: bool) -> Screen<'a> {
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem.window("chipers",
                                         (SCREEN_WIDTH * zoom) as u32,
@@ -22,7 +22,9 @@ impl<'a> Screen<'a> {
       .position_centered()
       .build()
       .unwrap();
-    let mut renderer = window.renderer().build().unwrap();
+    let mut builder = window.renderer();
+    if vsync { builder = builder.present_vsync() }
+    let mut renderer = builder.build().unwrap();
 
     renderer.set_scale(zoom as f32, zoom as f32).unwrap();
     renderer.clear();

@@ -32,7 +32,7 @@ Usage:
 
 Options:
   -h, --help              Show this help.
-  -l, --limit             Limit frames to 60Hz.
+  -l, --limit             Limit frames to refresh rate (v-sync).
   -z <int>, --zoom <int>  Set the zoom factor of the window [default: 10].
   -v, --verbose           Show debug information.
 ";
@@ -56,7 +56,7 @@ fn main() {
   let sdl_context = sdl2::init().unwrap();
 
   // Init Screen
-  let screen = Screen::new(&sdl_context, zoom);
+  let screen = Screen::new(&sdl_context, zoom, args.flag_limit);
 
   // Init CPU
   let mut f = File::open(args.arg_rom)
@@ -71,10 +71,8 @@ fn main() {
   cpu.load_rom(&buf);
 
   // Main loop
-  let frame_duration = Duration::new(0, FRAME_NS);
   let mut frames = 0;
   let mut last_fps = Instant::now();
-  let mut last_frame = Instant::now();
 
   let mut event_pump = sdl_context.event_pump().unwrap();
 
@@ -125,11 +123,6 @@ fn main() {
     }
 
     cpu.frame();
-
-    if args.flag_limit {
-      std::thread::sleep(frame_duration - last_frame.elapsed());
-      last_frame = Instant::now();
-    }
 
     if args.flag_verbose {
       frames += 1;
