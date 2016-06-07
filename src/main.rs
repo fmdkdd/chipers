@@ -4,7 +4,7 @@ extern crate docopt;
 
 use std::io::prelude::*;
 use std::fs::File;
-use std::time::{Instant, Duration};
+use std::time::Instant;
 
 use sdl2::event::Event;
 use sdl2::event::Event::{KeyDown, KeyUp};
@@ -20,7 +20,6 @@ use cpu::Cpu;
 use screen::Screen;
 use keyboard::Keyboard;
 
-const FRAME_NS: u32 = 1000000000 / 60; // 60Hz
 const FPS_REPORT_INTERVAL: u64 = 100000; // Frames to wait before reporting FPS
 
 const USAGE: &'static str = "
