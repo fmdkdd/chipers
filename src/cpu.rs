@@ -9,7 +9,7 @@ use keyboard::Keyboard;
 
 const RAM_LENGTH: usize = 0x1000;
 const NUM_REGS: usize = 0x10;
-const CYCLES_PER_FRAME: u64 = 10;
+const CYCLES_PER_TICK: u64 = 10;
 
 pub struct Cpu<'a> {
   ram: [u8; RAM_LENGTH],
@@ -22,7 +22,7 @@ pub struct Cpu<'a> {
   asleep: bool,
   key_register: usize,
 
-  screen: Screen<'a>,
+  pub screen: Screen<'a>,
   keyboard: Keyboard,
   rng: ThreadRng,
 }
@@ -119,8 +119,8 @@ impl<'a> Cpu<'a> {
     self.exec(opcode);
   }
 
-  pub fn frame(&mut self) {
-    for _ in 0..CYCLES_PER_FRAME {
+  pub fn tick(&mut self) {
+    for _ in 0..CYCLES_PER_TICK {
       self.step();
     }
 
@@ -131,8 +131,6 @@ impl<'a> Cpu<'a> {
     if self.sound_timer > 0 {
       self.sound_timer -= 1;
     }
-
-    self.screen.repaint();
   }
 
   fn is_key_down(&self, key: u8) -> bool {
