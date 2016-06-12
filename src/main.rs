@@ -28,14 +28,15 @@ const USAGE: &'static str = "
 A Chip-8 emulator in Rust.
 
 Usage:
-  chipers [options] <rom>
+  chipers [options] [-c <hz> | -t] <rom>
   chipers -h
 
 Options:
   -h, --help              Show this help.
   -z <int>, --zoom <int>  Set the zoom factor of the window [default: 10].
   -f <hz>, --fps <hz>     Set the repaint frequency [default: 60].
-  -t, --turbo             Emulate as fast as possible (probably unplayable).
+  -c <hz>, --cps <hz>     Set the CPU frequency [default: 600].
+  -t, --turbo             Emulate as fast as possible (for benchmarking).
   -d, --debug             Show debug information.
 ";
 
@@ -44,6 +45,7 @@ struct Args {
   arg_rom: String,
   flag_zoom: usize,
   flag_fps: usize,
+  flag_cps: u64,
   flag_turbo: bool,
   flag_debug: bool,
 }
@@ -57,6 +59,10 @@ fn main() {
   // Time between each repaint
   let target_repaint_interval =
     Duration::microseconds(1_000_000 / args.flag_fps as i64);
+
+  // Target CPU frequency
+  let cpu_target_tick_frequency = args.flag_cps as f32 / 10f32;
+  let cpu_ticks_per_frame = cpu_target_tick_frequency / args.flag_fps as f32;
 
   // Init SDL
   let zoom = args.flag_zoom;
@@ -78,6 +84,7 @@ fn main() {
   cpu.load_rom(&buf);
 
   // Main loop
+  let mut cpu_ticks_this_frame = 0f32;
   let mut num_repaints = 0;
   let mut last_repaint = SteadyTime::now();
   let tick_slack = Duration::microseconds(100);
@@ -137,10 +144,16 @@ fn main() {
       }
     }
 
-    // At least one tick
-    // TODO: tick assumes it is called at 60Hz.
-    cpu.tick();
-    cpu_ticks += 1;
+    // How many ticks should we run this frame?  Can be non-integer.
+    cpu_ticks_this_frame += cpu_ticks_per_frame;
+    let ticks_target = cpu_ticks_this_frame.floor() as u64;
+    // Run the integer number of ticks.
+    for _ in 0..ticks_target {
+      cpu.tick();
+      cpu_ticks += 1;
+    }
+    // Account for leftover fractional ticks.
+    cpu_ticks_this_frame -= ticks_target as f32;
 
     let mut since_last_repaint = SteadyTime::now() - last_repaint;
 
