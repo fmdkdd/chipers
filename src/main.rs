@@ -61,7 +61,7 @@ fn main() {
     Duration::microseconds(1_000_000 / args.flag_fps as i64);
 
   // Target CPU frequency
-  let cpu_target_tick_frequency = args.flag_cps as f32 / 10f32;
+  let cpu_target_tick_frequency = args.flag_cps as f32 / cpu::CYCLES_PER_TICK as f32;
   let cpu_ticks_per_frame = cpu_target_tick_frequency / args.flag_fps as f32;
 
   // Init SDL

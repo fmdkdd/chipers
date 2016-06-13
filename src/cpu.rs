@@ -9,7 +9,7 @@ use keyboard::Keyboard;
 
 const RAM_LENGTH: usize = 0x1000;
 const NUM_REGS: usize = 0x10;
-const CYCLES_PER_TICK: u64 = 10;
+pub const CYCLES_PER_TICK: u64 = 10;
 
 pub struct Cpu<'a> {
   ram: [u8; RAM_LENGTH],
