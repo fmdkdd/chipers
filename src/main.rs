@@ -1,18 +1,17 @@
-extern crate sdl2;
 extern crate rustc_serialize;
 extern crate docopt;
 extern crate time;
+#[macro_use]
+extern crate glium;
 
 use std::io::prelude::*;
 use std::fs::File;
 
-use sdl2::event::Event;
-use sdl2::event::Event::{KeyDown, KeyUp};
-use sdl2::keyboard::Keycode;
-
 use docopt::Docopt;
 
 use time::{Duration, SteadyTime};
+
+use glium::glutin::Event;
 
 mod cpu;
 mod screen;
@@ -64,12 +63,11 @@ fn main() {
   let cpu_target_tick_frequency = args.flag_cps as f32 / cpu::CYCLES_PER_TICK as f32;
   let cpu_ticks_per_frame = cpu_target_tick_frequency / args.flag_fps as f32;
 
-  // Init SDL
+  // Init Glium
   let zoom = args.flag_zoom;
-  let sdl_context = sdl2::init().unwrap();
 
   // Init Screen
-  let screen = Screen::new(&sdl_context, zoom, false);
+  let screen = Screen::new(args.flag_zoom, false);
 
   // Init CPU
   let mut f = File::open(args.arg_rom)
@@ -83,6 +81,12 @@ fn main() {
   cpu.reset();
   cpu.load_rom(&buf);
 
+  // Debug stuff
+  let mut cpu_ticks = 0;
+  let mut last_tps_report = SteadyTime::now();
+  let mut fps_history = [0f32; FPS_HISTORY_LENGTH];
+  let mut fps_history_idx = 0;
+
   // Main loop
   let mut cpu_ticks_this_frame = 0f32;
   let mut num_repaints = 0;
@@ -90,59 +94,54 @@ fn main() {
   let tick_slack = Duration::microseconds(100);
   let sleep_slack = Duration::microseconds(500);
 
-  // Debug stuff
-  let mut cpu_ticks = 0;
-  let mut last_tps_report = SteadyTime::now();
-  let mut fps_history = [0f32; FPS_HISTORY_LENGTH];
-  let mut fps_history_idx = 0;
-
-  let mut event_pump = sdl_context.event_pump().unwrap();
-
   'running: loop {
-    for event in event_pump.poll_iter() {
+    for event in cpu.screen.display.poll_events() {
       match event {
-        Event::Quit {..}
-        | KeyDown { keycode: Some(Keycode::Escape), .. } => {
-          break 'running
-        },
+        Event::Closed => { break 'running },
+        // Event::Quit {..}
+        // | KeyDown { keycode: Some(Keycode::Escape), .. } => {
+        //   break 'running
+        // },
 
-        KeyDown { keycode: Some(Keycode::Num1), .. } => cpu.down_key(0x1),
-        KeyDown { keycode: Some(Keycode::Num2), .. } => cpu.down_key(0x2),
-        KeyDown { keycode: Some(Keycode::Num3), .. } => cpu.down_key(0x3),
-        KeyDown { keycode: Some(Keycode::Q), .. }    => cpu.down_key(0x4),
-        KeyDown { keycode: Some(Keycode::W), .. }    => cpu.down_key(0x5),
-        KeyDown { keycode: Some(Keycode::F), .. }    => cpu.down_key(0x6),
-        KeyDown { keycode: Some(Keycode::A), .. }    => cpu.down_key(0x7),
-        KeyDown { keycode: Some(Keycode::R), .. }    => cpu.down_key(0x8),
-        KeyDown { keycode: Some(Keycode::S), .. }    => cpu.down_key(0x9),
-        KeyDown { keycode: Some(Keycode::Z), .. }    => cpu.down_key(0xA),
-        KeyDown { keycode: Some(Keycode::X), .. }    => cpu.down_key(0x0),
-        KeyDown { keycode: Some(Keycode::C), .. }    => cpu.down_key(0xB),
-        KeyDown { keycode: Some(Keycode::Num4), .. } => cpu.down_key(0xC),
-        KeyDown { keycode: Some(Keycode::P), .. }    => cpu.down_key(0xD),
-        KeyDown { keycode: Some(Keycode::T), .. }    => cpu.down_key(0xE),
-        KeyDown { keycode: Some(Keycode::V), .. }    => cpu.down_key(0xF),
+        // KeyDown { keycode: Some(Keycode::Num1), .. } => cpu.down_key(0x1),
+        // KeyDown { keycode: Some(Keycode::Num2), .. } => cpu.down_key(0x2),
+        // KeyDown { keycode: Some(Keycode::Num3), .. } => cpu.down_key(0x3),
+        // KeyDown { keycode: Some(Keycode::Q), .. }    => cpu.down_key(0x4),
+        // KeyDown { keycode: Some(Keycode::W), .. }    => cpu.down_key(0x5),
+        // KeyDown { keycode: Some(Keycode::F), .. }    => cpu.down_key(0x6),
+        // KeyDown { keycode: Some(Keycode::A), .. }    => cpu.down_key(0x7),
+        // KeyDown { keycode: Some(Keycode::R), .. }    => cpu.down_key(0x8),
+        // KeyDown { keycode: Some(Keycode::S), .. }    => cpu.down_key(0x9),
+        // KeyDown { keycode: Some(Keycode::Z), .. }    => cpu.down_key(0xA),
+        // KeyDown { keycode: Some(Keycode::X), .. }    => cpu.down_key(0x0),
+        // KeyDown { keycode: Some(Keycode::C), .. }    => cpu.down_key(0xB),
+        // KeyDown { keycode: Some(Keycode::Num4), .. } => cpu.down_key(0xC),
+        // KeyDown { keycode: Some(Keycode::P), .. }    => cpu.down_key(0xD),
+        // KeyDown { keycode: Some(Keycode::T), .. }    => cpu.down_key(0xE),
+        // KeyDown { keycode: Some(Keycode::V), .. }    => cpu.down_key(0xF),
 
-        KeyUp { keycode: Some(Keycode::Num1), .. }   => cpu.release_key(0x1),
-        KeyUp { keycode: Some(Keycode::Num2), .. }   => cpu.release_key(0x2),
-        KeyUp { keycode: Some(Keycode::Num3), .. }   => cpu.release_key(0x3),
-        KeyUp { keycode: Some(Keycode::Q), .. }      => cpu.release_key(0x4),
-        KeyUp { keycode: Some(Keycode::W), .. }      => cpu.release_key(0x5),
-        KeyUp { keycode: Some(Keycode::F), .. }      => cpu.release_key(0x6),
-        KeyUp { keycode: Some(Keycode::A), .. }      => cpu.release_key(0x7),
-        KeyUp { keycode: Some(Keycode::R), .. }      => cpu.release_key(0x8),
-        KeyUp { keycode: Some(Keycode::S), .. }      => cpu.release_key(0x9),
-        KeyUp { keycode: Some(Keycode::Z), .. }      => cpu.release_key(0xA),
-        KeyUp { keycode: Some(Keycode::X), .. }      => cpu.release_key(0x0),
-        KeyUp { keycode: Some(Keycode::C), .. }      => cpu.release_key(0xB),
-        KeyUp { keycode: Some(Keycode::Num4), .. }   => cpu.release_key(0xC),
-        KeyUp { keycode: Some(Keycode::P), .. }      => cpu.release_key(0xD),
-        KeyUp { keycode: Some(Keycode::T), .. }      => cpu.release_key(0xE),
-        KeyUp { keycode: Some(Keycode::V), .. }      => cpu.release_key(0xF),
+        // KeyUp { keycode: Some(Keycode::Num1), .. }   => cpu.release_key(0x1),
+        // KeyUp { keycode: Some(Keycode::Num2), .. }   => cpu.release_key(0x2),
+        // KeyUp { keycode: Some(Keycode::Num3), .. }   => cpu.release_key(0x3),
+        // KeyUp { keycode: Some(Keycode::Q), .. }      => cpu.release_key(0x4),
+        // KeyUp { keycode: Some(Keycode::W), .. }      => cpu.release_key(0x5),
+        // KeyUp { keycode: Some(Keycode::F), .. }      => cpu.release_key(0x6),
+        // KeyUp { keycode: Some(Keycode::A), .. }      => cpu.release_key(0x7),
+        // KeyUp { keycode: Some(Keycode::R), .. }      => cpu.release_key(0x8),
+        // KeyUp { keycode: Some(Keycode::S), .. }      => cpu.release_key(0x9),
+        // KeyUp { keycode: Some(Keycode::Z), .. }      => cpu.release_key(0xA),
+        // KeyUp { keycode: Some(Keycode::X), .. }      => cpu.release_key(0x0),
+        // KeyUp { keycode: Some(Keycode::C), .. }      => cpu.release_key(0xB),
+        // KeyUp { keycode: Some(Keycode::Num4), .. }   => cpu.release_key(0xC),
+        // KeyUp { keycode: Some(Keycode::P), .. }      => cpu.release_key(0xD),
+        // KeyUp { keycode: Some(Keycode::T), .. }      => cpu.release_key(0xE),
+        // KeyUp { keycode: Some(Keycode::V), .. }      => cpu.release_key(0xF),
 
         _ => {}
       }
     }
+
+    cpu.screen.begin_frame();
 
     // How many ticks should we run this frame?  Can be non-integer.
     cpu_ticks_this_frame += cpu_ticks_per_frame;
@@ -185,13 +184,14 @@ fn main() {
     }
     // Above target interval: we missed one or more frames.
     else {
-      println!("Missed a frame by {:?}", since_last_repaint - target_repaint_interval);
+      println!("Missed a frame by {:?}",
+               since_last_repaint - target_repaint_interval);
     }
 
     last_repaint = SteadyTime::now();
 
     // Time to repaint!
-    cpu.screen.repaint();
+    cpu.screen.end_frame();
 
     if args.flag_debug {
       num_repaints += 1;

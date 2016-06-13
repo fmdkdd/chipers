@@ -11,7 +11,7 @@ const RAM_LENGTH: usize = 0x1000;
 const NUM_REGS: usize = 0x10;
 pub const CYCLES_PER_TICK: u64 = 10;
 
-pub struct Cpu<'a> {
+pub struct Cpu {
   ram: [u8; RAM_LENGTH],
   v: [u8; NUM_REGS],
   pc: u16,
@@ -22,13 +22,13 @@ pub struct Cpu<'a> {
   asleep: bool,
   key_register: usize,
 
-  pub screen: Screen<'a>,
+  pub screen: Screen,
   keyboard: Keyboard,
   rng: ThreadRng,
 }
 
-impl<'a> Cpu<'a> {
-  pub fn new<'b>(screen: Screen<'b>, keyboard: Keyboard) -> Cpu<'b> {
+impl Cpu {
+  pub fn new(screen: Screen, keyboard: Keyboard) -> Cpu {
     Cpu {
       ram: [0; RAM_LENGTH],
       v: [0; NUM_REGS],
