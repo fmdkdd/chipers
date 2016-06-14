@@ -172,9 +172,11 @@ fn main() {
       else {
         // Sleep granularity depends on platform.  Subtract some slack to avoid
         // oversleeping.
-        let wait = (target_repaint_interval - since_last_repaint - sleep_slack)
-          .to_std().unwrap();
-        std::thread::sleep(wait);
+        if target_repaint_interval - since_last_repaint > sleep_slack {
+          let wait = (target_repaint_interval - since_last_repaint - sleep_slack)
+            .to_std().unwrap();
+          std::thread::sleep(wait);
+        }
       }
 
       // If there is still time left, busy wait
@@ -203,7 +205,8 @@ fn main() {
       if num_repaints == args.flag_fps {
         let since_last_report = SteadyTime::now() - last_tps_report;
         last_tps_report = SteadyTime::now();
-        let avg_fps = fps_history.iter().fold(0f32, |a, &b| a + b) / FPS_HISTORY_LENGTH as f32;
+        let avg_fps = fps_history.iter().fold(0f32, |a, &b| a + b)
+          / FPS_HISTORY_LENGTH as f32;
         let tps = cpu_ticks * 1000 / since_last_report.num_milliseconds();
 
         println!("{:.3}ms, {}tps ({}x)", avg_fps, tps, (tps / 60));
