@@ -1,28 +1,21 @@
 use std::mem;
 
 use glium::backend::glutin_backend::GlutinFacade;
-use glium;
+use glium::index::PrimitiveType;
 use glium::DisplayBuild;
-use glium::{Frame, Surface, VertexBuffer};
+use glium::{Frame, Surface, VertexBuffer, IndexBuffer, Program};
+use glium::glutin::WindowBuilder;
+use glium::texture::{UncompressedFloatFormat, MipmapsOption};
+use glium::texture::texture2d::Texture2d;
+use glium::texture::pixel_buffer::PixelBuffer;
+use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
 
 #[derive(Copy, Clone)]
 struct Vertex {
   position: [f32; 2],
+  tex_coords: [f32; 2],
 }
-implement_vertex!(Vertex, position);
-
-fn point(vec: &mut Vec<Vertex>, x: u32, y: u32) {
-  let x = x as f32;
-  let x1 = x + 1.0;
-  let y = y as f32;
-  let y1 = y + 1.0;
-  vec.push(Vertex { position: [  x,  y ] });
-  vec.push(Vertex { position: [ x1,  y ] });
-  vec.push(Vertex { position: [  x, y1 ] });
-  vec.push(Vertex { position: [  x, y1 ] });
-  vec.push(Vertex { position: [ x1,  y ] });
-  vec.push(Vertex { position: [ x1, y1 ] });
-}
+implement_vertex!(Vertex, position, tex_coords);
 
 pub const SCREEN_HEIGHT: usize = 32;
 pub const SCREEN_WIDTH: usize = 64;
@@ -33,31 +26,33 @@ pub struct Screen {
   pixels: [bool; SCREEN_HEIGHT * SCREEN_WIDTH],
   pub display: GlutinFacade,
   frame: Option<Frame>,
-  pink_vertices: Vec<Vertex>,
-  black_vertices: Vec<Vertex>,
-  program: glium::Program,
+  program: Program,
+  vertex_buffer: VertexBuffer<Vertex>,
+  index_buffer: IndexBuffer<u16>,
+  pixel_buffer: PixelBuffer<u8>,
+  texture: Texture2d,
+  matrix: [[f32; 4]; 4],
 }
 
 impl Screen {
   pub fn new(zoom: usize, vsync: bool) -> Screen {
-    let display = glium::glutin::WindowBuilder::new()
+    let display = WindowBuilder::new()
       .with_title("Chipers")
       .with_dimensions((SCREEN_WIDTH * zoom) as u32,
                        (SCREEN_HEIGHT * zoom) as u32)
       .build_glium().unwrap();
 
-    // renderer.set_scale(zoom as f32, zoom as f32).unwrap();
-    // renderer.clear();
-    // renderer.present();
-
     let vertex_shader_src = r#"
       #version 140
 
       in vec2 position;
+      in vec2 tex_coords;
+      out vec2 v_tex_coords;
 
       uniform mat4 matrix;
 
       void main() {
+        v_tex_coords = tex_coords;
         gl_Position = matrix * vec4(position, 0.0, 1.0);
       }
   "#;
@@ -65,31 +60,66 @@ impl Screen {
     let fragment_shader_src = r#"
     #version 140
 
-    uniform bool pink;
+    in vec2 v_tex_coords;
     out vec4 color;
 
+    uniform sampler2D tex;
+
     void main() {
-      if (pink) {
-        color = vec4(1.0, 0.0, 1.0, 1.0);
-      } else {
-        color = vec4(0.0, 0.0, 0.0, 1.0);
-      }
+      color = vec4(texture(tex, v_tex_coords).x * 255, 0.0, 1.0, 1.0);
+      //color = vec4(1.0, 0.0, 1.0, 1.0);
     }
   "#;
 
-    let program = glium::Program::from_source(
+    let program = Program::from_source(
       &display, vertex_shader_src, fragment_shader_src, None)
       .unwrap();
+
+    // One nice rectangle to hold the texture
+    let vertices = [
+      Vertex { position: [-1.0, -1.0], tex_coords: [0.0, 0.0] },
+      Vertex { position: [-1.0,  1.0], tex_coords: [0.0, 1.0] },
+      Vertex { position: [ 1.0,  1.0], tex_coords: [1.0, 1.0] },
+      Vertex { position: [ 1.0, -1.0], tex_coords: [1.0, 0.0] }
+    ];
+
+    let vertex_buffer = VertexBuffer::immutable(&display, &vertices).unwrap();
+    let index_buffer = IndexBuffer::immutable(
+      &display, PrimitiveType::TriangleStrip, &[1u16, 2, 0, 3]).unwrap();
+
+    // The buffer to hold the pixel values
+    let pixel_buffer = PixelBuffer::new_empty(
+      &display, SCREEN_WIDTH * SCREEN_HEIGHT);
+    pixel_buffer.write(&vec![0u8; pixel_buffer.get_size()]);
+
+    let texture = Texture2d::empty_with_format(&display,
+                                               UncompressedFloatFormat::U8,
+                                               MipmapsOption::NoMipmap,
+                                               64, 32).unwrap();
+
+    texture.main_level().raw_upload_from_pixel_buffer(
+      pixel_buffer.as_slice(),
+      0..SCREEN_WIDTH as u32,
+      0..SCREEN_HEIGHT as u32, 0..1);
+
+    let matrix = [
+      [1.0, 0.0, 0.0, 0.0],
+      [0.0,-1.0, 0.0, 0.0],
+      [0.0, 0.0, 1.0, 0.0],
+      [0.0, 0.0, 0.0, 1.0f32],
+    ];
 
     Screen {
       pixels: [false; SCREEN_HEIGHT * SCREEN_WIDTH],
       display: display,
       frame: None,
-      pink_vertices: Vec::new(),
-      black_vertices: Vec::new(),
       program: program,
+      vertex_buffer: vertex_buffer,
+      index_buffer: index_buffer,
+      pixel_buffer: pixel_buffer,
+      texture: texture,
+      matrix: matrix,
     }
-
   }
 
   pub fn clear(&mut self) {
@@ -102,43 +132,36 @@ impl Screen {
 
   pub fn begin_frame(&mut self) {
     self.frame = Some(self.display.draw());
-    self.pink_vertices.clear();
-    self.black_vertices.clear();
   }
 
   pub fn end_frame(&mut self) {
-    let uniforms_pink = uniform! {
-      matrix: [
-        [2.0/SCREEN_WIDTH as f32, 0.0, 0.0, 0.0],
-        [0.0, -2.0/SCREEN_HEIGHT as f32, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [-1.0, 1.0, 0.0, 1.0f32],
-      ],
-
-      pink: true,
-    };
-
-    let uniforms_black = uniform! {
-      matrix: [
-        [2.0/SCREEN_WIDTH as f32, 0.0, 0.0, 0.0],
-        [0.0, -2.0/SCREEN_HEIGHT as f32, 0.0, 0.0],
-        [0.0, 0.0, 1.0, 0.0],
-        [-1.0, 1.0, 0.0, 1.0f32],
-      ],
-
-      pink: false,
-    };
-
-    let pink_vb = VertexBuffer::new(&self.display, &self.pink_vertices).unwrap();
-    let black_vb = VertexBuffer::new(&self.display, &self.black_vertices).unwrap();
-    let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
-
     if let Some(ref mut frame) = self.frame {
-      frame.draw(&pink_vb, &indices, &self.program,
-                 &uniforms_pink, &Default::default()).unwrap();
+      let mut pixels = [0; SCREEN_WIDTH * SCREEN_HEIGHT];
+      for i in 0..self.pixels.len() {
+        if self.pixels[i] {
+          pixels[i] = 1;
+        } else {
+          pixels[i] = 0;
+        }
+      }
+      self.pixel_buffer.write(&pixels);
 
-      frame.draw(&black_vb, &indices, &self.program,
-                 &uniforms_black, &Default::default()).unwrap();
+      self.texture.main_level().raw_upload_from_pixel_buffer(
+        self.pixel_buffer.as_slice(),
+        0..SCREEN_WIDTH as u32,
+        0..SCREEN_HEIGHT as u32, 0..1);
+
+      let uniforms = uniform! {
+        matrix: self.matrix,
+        tex: self.texture.sampled()
+          .minify_filter(MinifySamplerFilter::Nearest)
+          .magnify_filter(MagnifySamplerFilter::Nearest)
+      };
+
+      frame.draw(&self.vertex_buffer,
+                 &self.index_buffer,
+                 &self.program,
+                 &uniforms, &Default::default()).unwrap();
     }
 
     mem::replace(&mut self.frame, None).unwrap().finish().unwrap();
@@ -156,14 +179,15 @@ impl Screen {
     let collision = p && self.pixels[pos];
     self.pixels[pos] ^= p;
 
-    if p {
-      if self.pixels[pos] {
-        point(&mut self.pink_vertices, x as u32, y as u32);
-      }
-      else {
-        point(&mut self.black_vertices, x as u32, y as u32);
-      }
-    }
+    // if p {
+    //   if self.pixels[pos] {
+    //     self.pixel_buffer
+    //     // point(&mut self.pink_vertices, x as u32, y as u32);
+    //   }
+    //   else {
+    //     // point(&mut self.black_vertices, x as u32, y as u32);
+    //   }
+    // }
 
     collision
   }
