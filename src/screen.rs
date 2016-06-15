@@ -31,7 +31,6 @@ pub struct Screen {
   index_buffer: IndexBuffer<u16>,
   pixel_buffer: PixelBuffer<u8>,
   texture: Texture2d,
-  matrix: [[f32; 4]; 4],
 }
 
 impl Screen {
@@ -49,11 +48,9 @@ impl Screen {
       in vec2 tex_coords;
       out vec2 v_tex_coords;
 
-      uniform mat4 matrix;
-
       void main() {
         v_tex_coords = tex_coords;
-        gl_Position = matrix * vec4(position, 0.0, 1.0);
+        gl_Position = vec4(position, 0.0, 1.0);
       }
   "#;
 
@@ -76,11 +73,12 @@ impl Screen {
       .unwrap();
 
     // One nice rectangle to hold the texture
+    // Texture coordinates are upside-down.
     let vertices = [
-      Vertex { position: [-1.0, -1.0], tex_coords: [0.0, 0.0] },
-      Vertex { position: [-1.0,  1.0], tex_coords: [0.0, 1.0] },
-      Vertex { position: [ 1.0,  1.0], tex_coords: [1.0, 1.0] },
-      Vertex { position: [ 1.0, -1.0], tex_coords: [1.0, 0.0] }
+      Vertex { position: [-1.0, -1.0], tex_coords: [0.0, 1.0] },
+      Vertex { position: [-1.0,  1.0], tex_coords: [0.0, 0.0] },
+      Vertex { position: [ 1.0,  1.0], tex_coords: [1.0, 0.0] },
+      Vertex { position: [ 1.0, -1.0], tex_coords: [1.0, 1.0] }
     ];
 
     let vertex_buffer = VertexBuffer::immutable(&display, &vertices).unwrap();
@@ -102,13 +100,6 @@ impl Screen {
       0..SCREEN_WIDTH as u32,
       0..SCREEN_HEIGHT as u32, 0..1);
 
-    let matrix = [
-      [1.0, 0.0, 0.0, 0.0],
-      [0.0,-1.0, 0.0, 0.0],
-      [0.0, 0.0, 1.0, 0.0],
-      [0.0, 0.0, 0.0, 1.0f32],
-    ];
-
     Screen {
       pixels: [false; SCREEN_HEIGHT * SCREEN_WIDTH],
       display: display,
@@ -118,7 +109,6 @@ impl Screen {
       index_buffer: index_buffer,
       pixel_buffer: pixel_buffer,
       texture: texture,
-      matrix: matrix,
     }
   }
 
@@ -152,7 +142,6 @@ impl Screen {
         0..SCREEN_HEIGHT as u32, 0..1);
 
       let uniforms = uniform! {
-        matrix: self.matrix,
         tex: self.texture.sampled()
           .minify_filter(MinifySamplerFilter::Nearest)
           .magnify_filter(MagnifySamplerFilter::Nearest)
