@@ -11,7 +11,7 @@ use docopt::Docopt;
 
 use time::{Duration, SteadyTime};
 
-use glium::glutin::Event;
+use glium::glutin::{Event, ElementState, VirtualKeyCode};
 use glium::DisplayBuild;
 
 mod cpu;
@@ -104,45 +104,55 @@ fn main() {
   'running: loop {
     for event in display.poll_events() {
       match event {
-        Event::Closed => { break 'running },
-        // Event::Quit {..}
-        // | KeyDown { keycode: Some(Keycode::Escape), .. } => {
-        //   break 'running
-        // },
+        Event::Closed
+          | Event::KeyboardInput(ElementState::Pressed, _, Some(VirtualKeyCode::Escape))
+          => { break 'running },
 
-        // KeyDown { keycode: Some(Keycode::Num1), .. } => cpu.down_key(0x1),
-        // KeyDown { keycode: Some(Keycode::Num2), .. } => cpu.down_key(0x2),
-        // KeyDown { keycode: Some(Keycode::Num3), .. } => cpu.down_key(0x3),
-        // KeyDown { keycode: Some(Keycode::Q), .. }    => cpu.down_key(0x4),
-        // KeyDown { keycode: Some(Keycode::W), .. }    => cpu.down_key(0x5),
-        // KeyDown { keycode: Some(Keycode::F), .. }    => cpu.down_key(0x6),
-        // KeyDown { keycode: Some(Keycode::A), .. }    => cpu.down_key(0x7),
-        // KeyDown { keycode: Some(Keycode::R), .. }    => cpu.down_key(0x8),
-        // KeyDown { keycode: Some(Keycode::S), .. }    => cpu.down_key(0x9),
-        // KeyDown { keycode: Some(Keycode::Z), .. }    => cpu.down_key(0xA),
-        // KeyDown { keycode: Some(Keycode::X), .. }    => cpu.down_key(0x0),
-        // KeyDown { keycode: Some(Keycode::C), .. }    => cpu.down_key(0xB),
-        // KeyDown { keycode: Some(Keycode::Num4), .. } => cpu.down_key(0xC),
-        // KeyDown { keycode: Some(Keycode::P), .. }    => cpu.down_key(0xD),
-        // KeyDown { keycode: Some(Keycode::T), .. }    => cpu.down_key(0xE),
-        // KeyDown { keycode: Some(Keycode::V), .. }    => cpu.down_key(0xF),
+        Event::KeyboardInput(ElementState::Pressed, _, Some(vkey)) => {
+          match vkey {
+            VirtualKeyCode::Key1 => cpu.down_key(0x1),
+            VirtualKeyCode::Key2 => cpu.down_key(0x2),
+            VirtualKeyCode::Key3 => cpu.down_key(0x3),
+            VirtualKeyCode::Q    => cpu.down_key(0x4),
+            VirtualKeyCode::W    => cpu.down_key(0x5),
+            VirtualKeyCode::F    => cpu.down_key(0x6),
+            VirtualKeyCode::A    => cpu.down_key(0x7),
+            VirtualKeyCode::R    => cpu.down_key(0x8),
+            VirtualKeyCode::S    => cpu.down_key(0x9),
+            VirtualKeyCode::Z    => cpu.down_key(0x0),
+            VirtualKeyCode::X    => cpu.down_key(0xA),
+            VirtualKeyCode::C    => cpu.down_key(0xB),
+            VirtualKeyCode::Key4 => cpu.down_key(0xC),
+            VirtualKeyCode::P    => cpu.down_key(0xD),
+            VirtualKeyCode::T    => cpu.down_key(0xE),
+            VirtualKeyCode::V    => cpu.down_key(0xF),
 
-        // KeyUp { keycode: Some(Keycode::Num1), .. }   => cpu.release_key(0x1),
-        // KeyUp { keycode: Some(Keycode::Num2), .. }   => cpu.release_key(0x2),
-        // KeyUp { keycode: Some(Keycode::Num3), .. }   => cpu.release_key(0x3),
-        // KeyUp { keycode: Some(Keycode::Q), .. }      => cpu.release_key(0x4),
-        // KeyUp { keycode: Some(Keycode::W), .. }      => cpu.release_key(0x5),
-        // KeyUp { keycode: Some(Keycode::F), .. }      => cpu.release_key(0x6),
-        // KeyUp { keycode: Some(Keycode::A), .. }      => cpu.release_key(0x7),
-        // KeyUp { keycode: Some(Keycode::R), .. }      => cpu.release_key(0x8),
-        // KeyUp { keycode: Some(Keycode::S), .. }      => cpu.release_key(0x9),
-        // KeyUp { keycode: Some(Keycode::Z), .. }      => cpu.release_key(0xA),
-        // KeyUp { keycode: Some(Keycode::X), .. }      => cpu.release_key(0x0),
-        // KeyUp { keycode: Some(Keycode::C), .. }      => cpu.release_key(0xB),
-        // KeyUp { keycode: Some(Keycode::Num4), .. }   => cpu.release_key(0xC),
-        // KeyUp { keycode: Some(Keycode::P), .. }      => cpu.release_key(0xD),
-        // KeyUp { keycode: Some(Keycode::T), .. }      => cpu.release_key(0xE),
-        // KeyUp { keycode: Some(Keycode::V), .. }      => cpu.release_key(0xF),
+            _ => ()
+          }
+        },
+
+        Event::KeyboardInput(ElementState::Released, _, Some(vkey)) => {
+          match vkey {
+            VirtualKeyCode::Key1 => cpu.release_key(0x1),
+            VirtualKeyCode::Key2 => cpu.release_key(0x2),
+            VirtualKeyCode::Key3 => cpu.release_key(0x3),
+            VirtualKeyCode::Q    => cpu.release_key(0x4),
+            VirtualKeyCode::W    => cpu.release_key(0x5),
+            VirtualKeyCode::F    => cpu.release_key(0x6),
+            VirtualKeyCode::A    => cpu.release_key(0x7),
+            VirtualKeyCode::R    => cpu.release_key(0x8),
+            VirtualKeyCode::S    => cpu.release_key(0x9),
+            VirtualKeyCode::Z    => cpu.release_key(0x0),
+            VirtualKeyCode::X    => cpu.release_key(0xA),
+            VirtualKeyCode::C    => cpu.release_key(0xB),
+            VirtualKeyCode::Key4 => cpu.release_key(0xC),
+            VirtualKeyCode::P    => cpu.release_key(0xD),
+            VirtualKeyCode::T    => cpu.release_key(0xE),
+            VirtualKeyCode::V    => cpu.release_key(0xF),
+
+            _ => ()
+          }
+        },
 
         _ => {}
       }
