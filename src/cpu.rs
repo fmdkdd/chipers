@@ -65,7 +65,6 @@ impl Cpu {
     self.key_register = 0;
 
     self.screen.clear();
-    self.screen.repaint();
 
     self.load_font();
   }

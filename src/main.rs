@@ -12,6 +12,7 @@ use docopt::Docopt;
 use time::{Duration, SteadyTime};
 
 use glium::glutin::Event;
+use glium::DisplayBuild;
 
 mod cpu;
 mod screen;
@@ -66,8 +67,14 @@ fn main() {
   // Init Glium
   let zoom = args.flag_zoom;
 
+  let display = glium::glutin::WindowBuilder::new()
+    .with_title("Chipers")
+    .with_dimensions((screen::SCREEN_WIDTH * zoom) as u32,
+                     (screen::SCREEN_HEIGHT * zoom) as u32)
+    .build_glium().unwrap();
+
   // Init Screen
-  let screen = Screen::new(args.flag_zoom, false);
+  let screen = Screen::new(&display);
 
   // Init CPU
   let mut f = File::open(args.arg_rom)
@@ -95,7 +102,7 @@ fn main() {
   let sleep_slack = Duration::microseconds(500);
 
   'running: loop {
-    for event in cpu.screen.display.poll_events() {
+    for event in display.poll_events() {
       match event {
         Event::Closed => { break 'running },
         // Event::Quit {..}
@@ -140,8 +147,6 @@ fn main() {
         _ => {}
       }
     }
-
-    cpu.screen.begin_frame();
 
     // How many ticks should we run this frame?  Can be non-integer.
     cpu_ticks_this_frame += cpu_ticks_per_frame;
@@ -193,7 +198,9 @@ fn main() {
     last_repaint = SteadyTime::now();
 
     // Time to repaint!
-    cpu.screen.end_frame();
+    let mut frame = display.draw();
+    cpu.screen.repaint(&mut frame);
+    frame.finish().unwrap();
 
     if args.flag_debug {
       num_repaints += 1;
