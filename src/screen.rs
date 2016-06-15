@@ -29,36 +29,11 @@ pub struct Screen {
 
 impl Screen {
   pub fn new<F: Facade>(display: &F) -> Screen {
-    let vertex_shader_src = r#"
-      #version 140
-
-      in vec2 position;
-      in vec2 tex_coords;
-      out vec2 v_tex_coords;
-
-      void main() {
-        v_tex_coords = tex_coords;
-        gl_Position = vec4(position, 0.0, 1.0);
-      }
-  "#;
-
-    let fragment_shader_src = r#"
-    #version 140
-
-    in vec2 v_tex_coords;
-    out vec4 color;
-
-    uniform sampler2D tex;
-
-    void main() {
-      color = vec4(texture(tex, v_tex_coords).x * 255, 0.0, 1.0, 1.0);
-      //color = vec4(1.0, 0.0, 1.0, 1.0);
-    }
-  "#;
-
     let program = Program::from_source(
-      display, vertex_shader_src, fragment_shader_src, None)
-      .unwrap();
+      display,
+      include_str!("shader/vertex.glsl"),
+      include_str!("shader/fragment.glsl"),
+      None).unwrap();
 
     // One nice rectangle to hold the texture
     // Texture coordinates are upside-down.
