@@ -4,6 +4,9 @@ extern crate time;
 #[macro_use]
 extern crate glium;
 
+#[macro_use]
+extern crate imgui;
+
 use std::io::prelude::*;
 use std::fs::File;
 
@@ -12,7 +15,9 @@ use docopt::Docopt;
 use time::{Duration, SteadyTime};
 
 use glium::glutin::{Event, ElementState, VirtualKeyCode};
-use glium::DisplayBuild;
+use glium::{DisplayBuild, Surface};
+
+use imgui::{ImGui, ImGuiSetCond_FirstUseEver};
 
 mod cpu;
 mod screen;
@@ -72,6 +77,11 @@ fn main() {
     .with_dimensions((screen::SCREEN_WIDTH * zoom) as u32,
                      (screen::SCREEN_HEIGHT * zoom) as u32)
     .build_glium().unwrap();
+
+  // Init ImGui
+  let mut imgui = ImGui::init();
+  let mut imgui_renderer = imgui::glium_renderer::Renderer::init(
+    &mut imgui, &display).unwrap();
 
   // Init Screen
   let screen = Screen::new(&display);
@@ -158,6 +168,11 @@ fn main() {
       }
     }
 
+    // Create frame and signal ImGui
+    let mut frame = display.draw();
+    let (width, height) = frame.get_dimensions();
+    let ui = imgui.frame(width, height, 1.0f32);
+
     // How many ticks should we run this frame?  Can be non-integer.
     cpu_ticks_this_frame += cpu_ticks_per_frame;
     let ticks_target = cpu_ticks_this_frame.floor() as u64;
@@ -207,9 +222,16 @@ fn main() {
 
     last_repaint = SteadyTime::now();
 
+    ui.window(im_str!("Hello world"))
+      .size((300.0, 100.0), ImGuiSetCond_FirstUseEver)
+      .build(|| {
+        ui.text(im_str!("Hello world!"));
+        ui.text(im_str!("This is imgui-rs!"));
+      });
+
     // Time to repaint!
-    let mut frame = display.draw();
     cpu.screen.repaint(&mut frame);
+    imgui_renderer.render(&mut frame, ui).unwrap();
     frame.finish().unwrap();
 
     if args.flag_debug {
