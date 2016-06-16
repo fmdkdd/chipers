@@ -18,7 +18,7 @@ use glium::glutin::{Event, ElementState, VirtualKeyCode, MouseButton,
                     MouseScrollDelta, TouchPhase};
 use glium::{DisplayBuild, Surface};
 
-use imgui::{ImGui, ImGuiSetCond_FirstUseEver};
+use imgui::{ImGui, ImVec2};
 
 mod cpu;
 mod screen;
@@ -28,7 +28,7 @@ use cpu::Cpu;
 use screen::Screen;
 use keyboard::Keyboard;
 
-const FPS_HISTORY_LENGTH: usize = 64;
+const FPS_HISTORY_LENGTH: usize = 128;
 
 const USAGE: &'static str = "
 A Chip-8 emulator in Rust.
@@ -86,8 +86,9 @@ fn main() {
     .unwrap_or_else(|e| e.exit());
 
   // Time between each repaint
-  let target_repaint_interval =
-    Duration::microseconds(1_000_000 / args.flag_fps as i64);
+  let target_repaint_ms = 1000.0 / args.flag_fps as f32;
+  let target_repaint_interval = Duration::microseconds(
+    (1000.0 * target_repaint_ms) as i64);
 
   // Target CPU frequency
   let cpu_target_tick_frequency = args.flag_cps as f32 / cpu::CYCLES_PER_TICK as f32;
@@ -129,6 +130,8 @@ fn main() {
   let mut last_tps_report = SteadyTime::now();
   let mut fps_history = [0f32; FPS_HISTORY_LENGTH];
   let mut fps_history_idx = 0;
+  let mut tps = 0;
+  let mut avg_fps = 0.0;
 
   // Main loop
   let mut cpu_ticks_this_frame = 0f32;
@@ -262,18 +265,6 @@ fn main() {
 
     last_repaint = SteadyTime::now();
 
-    ui.window(im_str!("Hello world"))
-      .size((300.0, 100.0), ImGuiSetCond_FirstUseEver)
-      .build(|| {
-        ui.text(im_str!("Hello world!"));
-        ui.text(im_str!("This is imgui-rs!"));
-      });
-
-    // Time to repaint!
-    cpu.screen.repaint(&mut frame);
-    imgui_renderer.render(&mut frame, ui).unwrap();
-    frame.finish().unwrap();
-
     if args.flag_debug {
       num_repaints += 1;
 
@@ -281,18 +272,30 @@ fn main() {
         since_last_repaint.num_microseconds().unwrap() as f32 / 1000f32;
       fps_history_idx += 1;
 
+      ui.plot_histogram(format!("frame time (ms)\navg: {:.3}ms", avg_fps).into(),
+                        &fps_history)
+        .graph_size(ImVec2::new(FPS_HISTORY_LENGTH as f32, 40.0))
+        .scale_min(0.0)
+        .scale_max(target_repaint_ms * 2.0)
+        .build();
+
+      ui.text(format!("{}tps ({}x)", tps, tps / 60).into());
+
       if num_repaints == args.flag_fps {
         let since_last_report = SteadyTime::now() - last_tps_report;
         last_tps_report = SteadyTime::now();
-        let avg_fps = fps_history.iter().fold(0f32, |a, &b| a + b)
+        avg_fps = fps_history.iter().fold(0f32, |a, &b| a + b)
           / FPS_HISTORY_LENGTH as f32;
-        let tps = cpu_ticks * 1000 / since_last_report.num_milliseconds();
-
-        println!("{:.3}ms, {}tps ({}x)", avg_fps, tps, (tps / 60));
+        tps = cpu_ticks * 1000 / since_last_report.num_milliseconds();
 
         num_repaints = 0;
         cpu_ticks = 0;
       }
     }
+
+    // Time to repaint!
+    cpu.screen.repaint(&mut frame);
+    imgui_renderer.render(&mut frame, ui).unwrap();
+    frame.finish().unwrap();
   }
 }
