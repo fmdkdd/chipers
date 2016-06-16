@@ -132,6 +132,7 @@ fn main() {
   let mut fps_history_idx = 0;
   let mut tps = 0;
   let mut avg_fps = 0.0;
+  let mut overtimes = 0u64;
 
   // Main loop
   let mut cpu_ticks_this_frame = 0f32;
@@ -257,10 +258,9 @@ fn main() {
         since_last_repaint = SteadyTime::now() - last_repaint;
       }
     }
-    // Above target interval: we missed one or more frames.
+    // Above target interval: we took too much time and are late to repaint.
     else {
-      println!("Missed a frame by {:?}",
-               since_last_repaint - target_repaint_interval);
+      overtimes += 1;
     }
 
     last_repaint = SteadyTime::now();
@@ -272,8 +272,9 @@ fn main() {
         since_last_repaint.num_microseconds().unwrap() as f32 / 1000f32;
       fps_history_idx += 1;
 
-      ui.plot_histogram(format!("frame time (ms)\navg: {:.3}ms", avg_fps).into(),
-                        &fps_history)
+      ui.plot_histogram(
+        format!("frame time (ms)\navg: {:.3}ms\novertimes: {}",
+                avg_fps, overtimes).into(), &fps_history)
         .graph_size(ImVec2::new(FPS_HISTORY_LENGTH as f32, 40.0))
         .scale_min(0.0)
         .scale_max(target_repaint_ms * 2.0)
