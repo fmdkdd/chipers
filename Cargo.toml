@@ -9,4 +9,4 @@ docopt = "0.6"
 rustc-serialize = "0.3"
 time = "0.1"
 glium = "0.14"
-imgui = "0.0"
+imgui = { git = "https://github.com/Gekkio/imgui-rs" }
