@@ -14,7 +14,8 @@ use docopt::Docopt;
 
 use time::{Duration, SteadyTime};
 
-use glium::glutin::{Event, ElementState, VirtualKeyCode};
+use glium::glutin::{Event, ElementState, VirtualKeyCode, MouseButton,
+                    MouseScrollDelta, TouchPhase};
 use glium::{DisplayBuild, Surface};
 
 use imgui::{ImGui, ImGuiSetCond_FirstUseEver};
@@ -55,6 +56,29 @@ struct Args {
   flag_debug: bool,
 }
 
+struct UiState {
+  mouse_pos: (i32, i32),
+  mouse_pressed: (bool, bool, bool),
+  mouse_wheel: f32,
+}
+
+impl UiState {
+  fn new() -> UiState {
+    UiState {
+      mouse_pos: (0,0),
+      mouse_pressed: (false, false, false),
+      mouse_wheel: 0.0,
+    }
+  }
+
+  fn update_mouse(&self, imgui: &mut ImGui) {
+    imgui.set_mouse_pos(self.mouse_pos.0 as f32, self.mouse_pos.1 as f32);
+    imgui.set_mouse_down(&[self.mouse_pressed.0, self.mouse_pressed.1,
+                           self.mouse_pressed.2, false, false]);
+    imgui.set_mouse_wheel(self.mouse_wheel);
+  }
+}
+
 fn main() {
   // Process args
   let args: Args = Docopt::new(USAGE)
@@ -82,6 +106,8 @@ fn main() {
   let mut imgui = ImGui::init();
   let mut imgui_renderer = imgui::glium_renderer::Renderer::init(
     &mut imgui, &display).unwrap();
+
+  let mut ui_state = UiState::new();
 
   // Init Screen
   let screen = Screen::new(&display);
@@ -164,9 +190,23 @@ fn main() {
           }
         },
 
+        Event::MouseMoved(x, y) => ui_state.mouse_pos = (x, y),
+        Event::MouseInput(state, MouseButton::Left) =>
+          ui_state.mouse_pressed.0 = state == ElementState::Pressed,
+        Event::MouseInput(state, MouseButton::Right) =>
+          ui_state.mouse_pressed.1 = state == ElementState::Pressed,
+        Event::MouseInput(state, MouseButton::Middle) =>
+          ui_state.mouse_pressed.2 = state == ElementState::Pressed,
+        Event::MouseWheel(MouseScrollDelta::LineDelta(_, y), TouchPhase::Moved) =>
+          ui_state.mouse_wheel = y,
+        Event::MouseWheel(MouseScrollDelta::PixelDelta(_, y), TouchPhase::Moved) =>
+          ui_state.mouse_wheel = y,
+
         _ => {}
       }
     }
+
+    ui_state.update_mouse(&mut imgui);
 
     // Create frame and signal ImGui
     let mut frame = display.draw();
