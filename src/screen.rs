@@ -32,7 +32,7 @@ impl Screen {
     let program = Program::from_source(
       display,
       include_str!("shader/vertex.glsl"),
-      include_str!("shader/fragment.glsl"),
+      include_str!("shader/crt-lottes.glsl"),
       None).unwrap();
 
     // One nice rectangle to hold the texture
@@ -95,7 +95,10 @@ impl Screen {
       0..SCREEN_WIDTH as u32,
       0..SCREEN_HEIGHT as u32, 0..1);
 
+    let dim = frame.get_dimensions();
+
     let uniforms = uniform! {
+      iResolution: (dim.0 as f32, dim.1 as f32),
       tex: self.texture.sampled()
         .minify_filter(MinifySamplerFilter::Nearest)
         .magnify_filter(MagnifySamplerFilter::Nearest)
