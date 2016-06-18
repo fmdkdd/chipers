@@ -23,10 +23,12 @@ use imgui::{ImGui, ImVec2};
 mod cpu;
 mod screen;
 mod keyboard;
+mod memview;
 
 use cpu::Cpu;
 use screen::Screen;
 use keyboard::Keyboard;
+use memview::MemoryEditor;
 
 const FPS_HISTORY_LENGTH: usize = 128;
 
@@ -133,6 +135,7 @@ fn main() {
   let mut tps = 0;
   let mut avg_fps = 0.0;
   let mut overtimes = 0u64;
+  let mut memview = MemoryEditor::new();
 
   // Main loop
   let mut cpu_ticks_this_frame = 0f32;
@@ -282,6 +285,8 @@ fn main() {
         .build();
 
       ui.text(format!("{}tps ({}x)", tps, tps / 60).into());
+
+      memview.draw(&ui, im_str!("Memory Editor"), &cpu.ram);
 
       if num_repaints == args.flag_fps {
         let since_last_report = SteadyTime::now() - last_tps_report;

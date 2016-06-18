@@ -12,7 +12,7 @@ const NUM_REGS: usize = 0x10;
 pub const CYCLES_PER_TICK: u64 = 10;
 
 pub struct Cpu {
-  ram: [u8; RAM_LENGTH],
+  pub ram: [u8; RAM_LENGTH],
   v: [u8; NUM_REGS],
   pc: u16,
   i: u16,
