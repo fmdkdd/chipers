@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use glium::backend::Facade;
 use glium::index::PrimitiveType;
 use glium::{Surface, VertexBuffer, IndexBuffer, Program};
@@ -25,6 +27,7 @@ pub struct Screen {
   index_buffer: IndexBuffer<u16>,
   pixel_buffer: PixelBuffer<u8>,
   texture: Texture2d,
+  past_textures: VecDeque<Texture2d>,
 }
 
 impl Screen {
@@ -32,7 +35,7 @@ impl Screen {
     let program = Program::from_source(
       display,
       include_str!("shader/vertex.glsl"),
-      include_str!("shader/crt-lottes.glsl"),
+      include_str!("shader/crt-phosphor.glsl"),
       None).unwrap();
 
     // One nice rectangle to hold the texture
@@ -63,6 +66,21 @@ impl Screen {
       0..SCREEN_WIDTH as u32,
       0..SCREEN_HEIGHT as u32, 0..1);
 
+    let mut past_textures = VecDeque::with_capacity(8);
+    for _ in 0..8 {
+      let tex = Texture2d::empty_with_format(display,
+                                             UncompressedFloatFormat::U8,
+                                             MipmapsOption::NoMipmap,
+                                             64, 32).unwrap();
+
+      tex.main_level().raw_upload_from_pixel_buffer(
+        pixel_buffer.as_slice(),
+        0..SCREEN_WIDTH as u32,
+        0..SCREEN_HEIGHT as u32, 0..1);
+
+      past_textures.push_front(tex);
+    }
+
     Screen {
       pixels: [false; SCREEN_HEIGHT * SCREEN_WIDTH],
       program: program,
@@ -70,6 +88,7 @@ impl Screen {
       index_buffer: index_buffer,
       pixel_buffer: pixel_buffer,
       texture: texture,
+      past_textures: past_textures,
     }
   }
 
@@ -80,6 +99,13 @@ impl Screen {
   }
 
   pub fn repaint<S: Surface>(&mut self, frame: &mut S) {
+    let tex = self.past_textures.pop_back().unwrap();
+    tex.main_level().raw_upload_from_pixel_buffer(
+      self.pixel_buffer.as_slice(),
+      0..SCREEN_WIDTH as u32,
+      0..SCREEN_HEIGHT as u32, 0..1);
+    self.past_textures.push_front(tex);
+
     let mut pixels = [0; SCREEN_WIDTH * SCREEN_HEIGHT];
     for i in 0..self.pixels.len() {
       if self.pixels[i] {
@@ -90,6 +116,8 @@ impl Screen {
     }
     self.pixel_buffer.write(&pixels);
 
+    // TODO: Maybe create new textures?
+    // Should test with full speed to see if it impacts the frame time.
     self.texture.main_level().raw_upload_from_pixel_buffer(
       self.pixel_buffer.as_slice(),
       0..SCREEN_WIDTH as u32,
@@ -101,7 +129,28 @@ impl Screen {
       iResolution: (dim.0 as f32, dim.1 as f32),
       tex: self.texture.sampled()
         .minify_filter(MinifySamplerFilter::Nearest)
-        .magnify_filter(MagnifySamplerFilter::Nearest)
+        .magnify_filter(MagnifySamplerFilter::Nearest),
+      prev0_tex: self.past_textures[0].sampled()
+        .minify_filter(MinifySamplerFilter::Nearest)
+        .magnify_filter(MagnifySamplerFilter::Nearest),
+      prev1_tex: self.past_textures[1].sampled()
+        .minify_filter(MinifySamplerFilter::Nearest)
+        .magnify_filter(MagnifySamplerFilter::Nearest),
+      prev2_tex: self.past_textures[2].sampled()
+        .minify_filter(MinifySamplerFilter::Nearest)
+        .magnify_filter(MagnifySamplerFilter::Nearest),
+      prev3_tex: self.past_textures[3].sampled()
+        .minify_filter(MinifySamplerFilter::Nearest)
+        .magnify_filter(MagnifySamplerFilter::Nearest),
+      prev4_tex: self.past_textures[4].sampled()
+        .minify_filter(MinifySamplerFilter::Nearest)
+        .magnify_filter(MagnifySamplerFilter::Nearest),
+      prev5_tex: self.past_textures[5].sampled()
+        .minify_filter(MinifySamplerFilter::Nearest)
+        .magnify_filter(MagnifySamplerFilter::Nearest),
+      prev6_tex: self.past_textures[6].sampled()
+        .minify_filter(MinifySamplerFilter::Nearest)
+        .magnify_filter(MagnifySamplerFilter::Nearest),
     };
 
     frame.draw(&self.vertex_buffer,
