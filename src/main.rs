@@ -275,6 +275,7 @@ fn main() {
       ui.plot_histogram(
         format!("frame time (ms)\navg: {:.3}ms\novertimes: {}",
                 avg_fps, overtimes).into(), &fps_history)
+        .values_offset(fps_history_idx)
         .graph_size(ImVec2::new(FPS_HISTORY_LENGTH as f32, 40.0))
         .scale_min(0.0)
         .scale_max(target_repaint_ms * 2.0)
