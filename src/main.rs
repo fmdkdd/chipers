@@ -290,6 +290,18 @@ fn main() {
                    &cpu.ram, &cpu.ram_reads, &cpu.ram_writes);
       cpu.reset_reads_writes();
 
+      ui.window(im_str!("Registers"))
+        .build(|| {
+          ui.text(format!("pc: {:02x}", cpu.pc).into());
+          ui.text(format!("i: {:02x}", cpu.i).into());
+          ui.text(format!("delay: {:02x}", cpu.delay_timer).into());
+          ui.text(format!("sound: {:02x}", cpu.sound_timer).into());
+
+          for r in 0..cpu.v.len() {
+            ui.text(format!("v{}: {:02x}", r, cpu.v[r]).into());
+          }
+        });
+
       if num_repaints == args.flag_fps {
         let since_last_report = SteadyTime::now() - last_tps_report;
         last_tps_report = SteadyTime::now();

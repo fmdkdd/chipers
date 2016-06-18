@@ -13,11 +13,11 @@ pub const CYCLES_PER_TICK: u64 = 10;
 
 pub struct Cpu {
   pub ram: [u8; RAM_LENGTH],
-  v: [u8; NUM_REGS],
-  pc: u16,
-  i: u16,
-  delay_timer: u8,
-  sound_timer: u8,
+  pub v: [u8; NUM_REGS],
+  pub pc: u16,
+  pub i: u16,
+  pub delay_timer: u8,
+  pub sound_timer: u8,
   stack: LinkedList<u16>,
   asleep: bool,
   key_register: usize,
