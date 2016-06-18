@@ -25,6 +25,9 @@ pub struct Cpu {
   pub screen: Screen,
   keyboard: Keyboard,
   rng: ThreadRng,
+
+  pub ram_reads: [u64; RAM_LENGTH],
+  pub ram_writes: [u64; RAM_LENGTH],
 }
 
 impl Cpu {
@@ -43,6 +46,8 @@ impl Cpu {
       screen: screen,
       keyboard: keyboard,
       rng: rand::thread_rng(),
+      ram_reads: [0; RAM_LENGTH],
+      ram_writes: [0; RAM_LENGTH],
     }
   }
 
@@ -91,6 +96,23 @@ impl Cpu {
     self.ram[..font.len()].copy_from_slice(&font);
   }
 
+  fn ram_read(&mut self, addr: usize) -> u8 {
+    self.ram_reads[addr] += 1;
+    self.ram[addr]
+  }
+
+  fn ram_write(&mut self, addr: usize, v: u8) {
+    self.ram_writes[addr] += 1;
+    self.ram[addr] = v;
+  }
+
+  pub fn reset_reads_writes(&mut self) {
+    for i in 0..RAM_LENGTH {
+      self.ram_reads[i] = 0;
+      self.ram_writes[i] = 0;
+    }
+  }
+
   pub fn load_rom(&mut self, rom: &[u8]) {
     self.ram[0x200..0x200 + rom.len()].copy_from_slice(&rom);
   }
@@ -111,8 +133,10 @@ impl Cpu {
   fn step(&mut self) {
     if self.asleep { return }
 
-    let opcode = (self.ram[self.pc as usize] as u16) << 8
-      | (self.ram[(self.pc + 1) as usize] as u16);
+    let pc = self.pc;
+
+    let opcode = (self.ram_read(pc as usize) as u16) << 8
+      | (self.ram_read((pc + 1) as usize) as u16);
     self.pc += 2;
 
     self.exec(opcode);
@@ -219,7 +243,7 @@ impl Cpu {
         let mut sprite = Vec::new();
 
         for i in (self.i)..(self.i + n) {
-          let p = self.ram[i as usize];
+          let p = self.ram_read(i as usize);
           for b in 0..8 {
             sprite.push(if (p & (1 << (7 - b))) > 0 { true } else { false });
           }
@@ -266,9 +290,10 @@ impl Cpu {
             let h = self.v[x] / 100;
             let d = (self.v[x] % 100) / 10;
             let u = self.v[x] % 10;
-            self.ram[self.i as usize] = h;
-            self.ram[(self.i + 1) as usize] = d;
-            self.ram[(self.i + 2) as usize] = u;
+            let i = self.i as usize;
+            self.ram_write(i, h);
+            self.ram_write(i + 1, d);
+            self.ram_write(i + 2, u);
           },
 
           0x55 => {
@@ -278,8 +303,9 @@ impl Cpu {
           },
 
           0x65 => {
+            let si = self.i as usize;
             for i in 0..(x + 1) {
-              self.v[i] = self.ram[self.i as usize + i];
+              self.v[i] = self.ram_read(si + i);
             }
           },
 

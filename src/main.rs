@@ -286,7 +286,9 @@ fn main() {
 
       ui.text(format!("{}tps ({}x)", tps, tps / 60).into());
 
-      memview.draw(&ui, im_str!("Memory Editor"), &cpu.ram);
+      memview.draw(&ui, im_str!("Memory Editor"),
+                   &cpu.ram, &cpu.ram_reads, &cpu.ram_writes);
+      cpu.reset_reads_writes();
 
       if num_repaints == args.flag_fps {
         let since_last_report = SteadyTime::now() - last_tps_report;
