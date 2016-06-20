@@ -136,6 +136,7 @@ fn main() {
   let mut avg_fps = 0.0;
   let mut overtimes = 0u64;
   let mut memview = MemoryEditor::new();
+  let mut last_ui_time = SteadyTime::now();
 
   // Main loop
   let mut cpu_ticks_this_frame = 0f32;
@@ -219,7 +220,11 @@ fn main() {
     // Create frame and signal ImGui
     let mut frame = display.draw();
     let (width, height) = frame.get_dimensions();
-    let ui = imgui.frame(width, height, 1.0f32);
+    let now = SteadyTime::now();
+    let ui = imgui.frame(width, height,
+                         (now - last_ui_time)
+                         .num_microseconds().unwrap() as f32 / 1_000_000.0);
+    last_ui_time = now;
 
     // How many ticks should we run this frame?  Can be non-integer.
     cpu_ticks_this_frame += cpu_ticks_per_frame;
