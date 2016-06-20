@@ -214,6 +214,7 @@ fn main() {
     }
 
     ui_state.update_mouse(&mut imgui);
+    ui_state.mouse_wheel = 0.0; // Clear value for this frame
 
     // Create frame and signal ImGui
     let mut frame = display.draw();
