@@ -16,7 +16,7 @@ use time::{Duration, SteadyTime};
 
 use glium::glutin::{Event, ElementState, VirtualKeyCode, MouseButton,
                     MouseScrollDelta, TouchPhase};
-use glium::{DisplayBuild, Surface};
+use glium::DisplayBuild;
 
 use imgui::{ImGui, ImVec2};
 
@@ -219,9 +219,11 @@ fn main() {
 
     // Create frame and signal ImGui
     let mut frame = display.draw();
-    let (width, height) = frame.get_dimensions();
     let now = SteadyTime::now();
-    let ui = imgui.frame(width, height,
+    let window = display.get_window().unwrap();
+    let size_points = window.get_inner_size_points().unwrap();
+    let size_pixels = window.get_inner_size_pixels().unwrap();
+    let ui = imgui.frame(size_points, size_pixels,
                          (now - last_ui_time)
                          .num_microseconds().unwrap() as f32 / 1_000_000.0);
     last_ui_time = now;
