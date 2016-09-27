@@ -1,3 +1,5 @@
 Port of my [[https://github.com/fmdkdd/chip8/][JavaScript Chip-8 emulator]] in [[https://www.rust-lang.org/][Rust]].
 
 Sound is not implemented.
+
+[[file:screen.png]]
