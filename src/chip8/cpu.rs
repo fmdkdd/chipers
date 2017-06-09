@@ -1,11 +1,9 @@
 extern crate rand;
-
-use std::collections::LinkedList;
-
 use self::rand::{ThreadRng, Rng};
 
-use screen::Screen;
-use keyboard::Keyboard;
+use std::collections::VecDeque;
+
+use chip8::{Screen, Keyboard};
 
 const RAM_LENGTH: usize = 0x1000;
 const NUM_REGS: usize = 0x10;
@@ -18,12 +16,10 @@ pub struct Cpu {
   pub i: u16,
   pub delay_timer: u8,
   pub sound_timer: u8,
-  stack: LinkedList<u16>,
+  stack: VecDeque<u16>,
   asleep: bool,
   key_register: usize,
 
-  pub screen: Screen,
-  keyboard: Keyboard,
   rng: ThreadRng,
 
   pub ram_reads: [u64; RAM_LENGTH],
@@ -31,20 +27,18 @@ pub struct Cpu {
 }
 
 impl Cpu {
-  pub fn new(screen: Screen, keyboard: Keyboard) -> Cpu {
-    Cpu {
+  pub fn new() -> Self {
+    Self {
       ram: [0; RAM_LENGTH],
       v: [0; NUM_REGS],
       pc: 0,
       i: 0,
       delay_timer: 0,
       sound_timer: 0,
-      stack: LinkedList::new(),
+      stack: VecDeque::new(),
       asleep: false,
       key_register: 0,
 
-      screen: screen,
-      keyboard: keyboard,
       rng: rand::thread_rng(),
       ram_reads: [0; RAM_LENGTH],
       ram_writes: [0; RAM_LENGTH],
@@ -65,11 +59,9 @@ impl Cpu {
     self.i = 0;
     self.delay_timer = 0;
     self.sound_timer = 0;
-    self.stack = LinkedList::new();
+    self.stack.clear();
     self.asleep = false;
     self.key_register = 0;
-
-    self.screen.clear();
 
     self.load_font();
   }
@@ -117,20 +109,7 @@ impl Cpu {
     self.ram[0x200..0x200 + rom.len()].copy_from_slice(&rom);
   }
 
-  pub fn down_key(&mut self, key: u8) {
-    self.keyboard.down_key(key);
-
-    if self.asleep {
-      self.v[self.key_register] = key;
-      self.asleep = false
-    }
-  }
-
-  pub fn release_key(&mut self, key: u8) {
-    self.keyboard.release_key(key);
-  }
-
-  fn step(&mut self) {
+  fn step<S: Screen, K: Keyboard>(&mut self, screen: &mut S, keyboard: &mut K) {
     if self.asleep { return }
 
     let pc = self.pc;
@@ -139,12 +118,12 @@ impl Cpu {
       | (self.ram_read((pc + 1) as usize) as u16);
     self.pc += 2;
 
-    self.exec(opcode);
+    self.exec(opcode, screen, keyboard);
   }
 
-  pub fn tick(&mut self) {
+  pub fn tick<S: Screen, K: Keyboard>(&mut self, screen: &mut S, keyboard: &mut K) {
     for _ in 0..CYCLES_PER_TICK {
-      self.step();
+      self.step(screen, keyboard);
     }
 
     if self.delay_timer > 0 {
@@ -156,11 +135,7 @@ impl Cpu {
     }
   }
 
-  fn is_key_down(&self, key: u8) -> bool {
-    self.keyboard.is_key_down(key)
-  }
-
-  fn exec(&mut self, opcode: u16) {
+  fn exec<S: Screen, K: Keyboard>(&mut self, opcode: u16, screen: &mut S, keyboard: &mut K) {
     let addr = opcode & 0x0FFF;
     let x = ((opcode & 0x0F00) >> 8) as usize;
     let y = ((opcode & 0x00F0) >> 4) as usize;
@@ -170,7 +145,7 @@ impl Cpu {
       0x0000 => match opcode & 0x00FF {
         0x00 => {},
 
-        0xE0 => self.screen.clear(),
+        0xE0 => screen.clear(),
 
         0xEE => self.pc = self.stack.pop_front().unwrap(),
 
@@ -250,15 +225,15 @@ impl Cpu {
         }
 
         // Draw
-        self.v[0xF] = self.screen.draw_sprite(self.v[x] as usize,
+        self.v[0xF] = screen.draw_sprite(self.v[x] as usize,
                                               self.v[y] as usize,
                                               &sprite) as u8;
       },
 
       0xE000 => {
         match opcode & 0x00FF {
-          0x9E => if self.is_key_down(self.v[x]) { self.pc += 2 },
-          0xA1 => if !self.is_key_down(self.v[x]) { self.pc += 2 },
+          0x9E => if keyboard.is_key_down(self.v[x]) { self.pc += 2 },
+          0xA1 => if !keyboard.is_key_down(self.v[x]) { self.pc += 2 },
 
           _ => panic!("Unknown upcode {:x}", opcode)
         }

@@ -8,6 +8,9 @@ use glium::texture::texture2d::Texture2d;
 use glium::texture::pixel_buffer::PixelBuffer;
 use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
 
+use chip8::screen::{SCREEN_WIDTH, SCREEN_HEIGHT, PixelScreen};
+use chip8;
+
 #[derive(Copy, Clone)]
 struct Vertex {
   position: [f32; 2],
@@ -15,13 +18,8 @@ struct Vertex {
 }
 implement_vertex!(Vertex, position, tex_coords);
 
-pub const SCREEN_HEIGHT: usize = 32;
-pub const SCREEN_WIDTH: usize = 64;
-// const COLOR: Color = Color::RGB(100, 100, 220);
-// const BLACK: Color = Color::RGB(0, 0, 0);
-
-pub struct Screen {
-  pixels: [bool; SCREEN_HEIGHT * SCREEN_WIDTH],
+pub struct GLScreen {
+  screen: PixelScreen,
   program: Program,
   vertex_buffer: VertexBuffer<Vertex>,
   index_buffer: IndexBuffer<u16>,
@@ -30,12 +28,12 @@ pub struct Screen {
   past_textures: VecDeque<Texture2d>,
 }
 
-impl Screen {
-  pub fn new<F: Facade>(display: &F) -> Screen {
+impl GLScreen {
+  pub fn new<F: Facade>(display: &F) -> Self {
     let program = Program::from_source(
       display,
-      include_str!("shader/vertex.glsl"),
-      include_str!("shader/crt-phosphor.glsl"),
+      include_str!("shader/vertex-120.glsl"),
+      include_str!("shader/fragment-120.glsl"),
       None).unwrap();
 
     // One nice rectangle to hold the texture
@@ -81,20 +79,14 @@ impl Screen {
       past_textures.push_front(tex);
     }
 
-    Screen {
-      pixels: [false; SCREEN_HEIGHT * SCREEN_WIDTH],
+    GLScreen {
+      screen: PixelScreen::new(),
       program: program,
       vertex_buffer: vertex_buffer,
       index_buffer: index_buffer,
       pixel_buffer: pixel_buffer,
       texture: texture,
       past_textures: past_textures,
-    }
-  }
-
-  pub fn clear(&mut self) {
-    for p in self.pixels.iter_mut() {
-      *p = false
     }
   }
 
@@ -107,12 +99,14 @@ impl Screen {
     self.past_textures.push_front(tex);
 
     let mut pixels = [0; SCREEN_WIDTH * SCREEN_HEIGHT];
-    for i in 0..self.pixels.len() {
-      if self.pixels[i] {
+    let mut i = 0;
+    for p in self.screen.pixels() {
+      if *p {
         pixels[i] = 1;
       } else {
         pixels[i] = 0;
       }
+      i += 1;
     }
     self.pixel_buffer.write(&pixels);
 
@@ -159,30 +153,14 @@ impl Screen {
                &uniforms, &Default::default()).unwrap();
   }
 
-  fn draw_pixel(&mut self, p: bool, x: usize, y: usize) -> bool {
-    let x = x % SCREEN_WIDTH;
-    let y = y % SCREEN_HEIGHT;
+}
 
-    let pos = y * SCREEN_WIDTH + x;
-    let collision = p && self.pixels[pos];
-    self.pixels[pos] ^= p;
-
-    collision
+impl chip8::Screen for GLScreen {
+  fn clear(&mut self) {
+    self.screen.clear();
   }
 
-  pub fn draw_sprite(&mut self, x: usize, y: usize, sprite: &[bool]) -> bool {
-    let width = 8;
-    let height = sprite.len() / 8;
-    let mut collision = false;
-
-    for yy in 0..height {
-      for xx in 0..width {
-        if self.draw_pixel(sprite[yy * width + xx], x + xx, y + yy) {
-          collision = true
-        }
-      }
-    }
-
-    collision
+  fn draw_sprite(&mut self, x: usize, y: usize, sprite: &[bool]) -> bool {
+    self.screen.draw_sprite(x, y, sprite)
   }
 }

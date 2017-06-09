@@ -20,14 +20,15 @@ use glium::DisplayBuild;
 
 use imgui::{ImGui, ImVec2};
 
-mod cpu;
-mod screen;
+mod chip8;
+mod glscreen;
 mod keyboard;
 mod memview;
 
-use cpu::Cpu;
-use screen::Screen;
-use keyboard::Keyboard;
+use chip8::cpu::{self, Cpu};
+use chip8::screen;
+use glscreen::GLScreen;
+use keyboard::SimpleKeyboard;
 use memview::MemoryEditor;
 
 const FPS_HISTORY_LENGTH: usize = 128;
@@ -113,7 +114,9 @@ fn main() {
   let mut ui_state = UiState::new();
 
   // Init Screen
-  let screen = Screen::new(&display);
+  let mut screen = GLScreen::new(&display);
+
+  let mut keyboard = SimpleKeyboard::new();
 
   // Init CPU
   let mut f = File::open(args.arg_rom)
@@ -122,7 +125,7 @@ fn main() {
   f.read_to_end(&mut buf)
     .expect("Error reading ROM");
 
-  let mut cpu = Cpu::new(screen, Keyboard::new());
+  let mut cpu = Cpu::new();
 
   cpu.reset();
   cpu.load_rom(&buf);
@@ -154,22 +157,22 @@ fn main() {
 
         Event::KeyboardInput(ElementState::Pressed, _, Some(vkey)) => {
           match vkey {
-            VirtualKeyCode::Key1 => cpu.down_key(0x1),
-            VirtualKeyCode::Key2 => cpu.down_key(0x2),
-            VirtualKeyCode::Key3 => cpu.down_key(0x3),
-            VirtualKeyCode::Q    => cpu.down_key(0x4),
-            VirtualKeyCode::W    => cpu.down_key(0x5),
-            VirtualKeyCode::F    => cpu.down_key(0x6),
-            VirtualKeyCode::A    => cpu.down_key(0x7),
-            VirtualKeyCode::R    => cpu.down_key(0x8),
-            VirtualKeyCode::S    => cpu.down_key(0x9),
-            VirtualKeyCode::Z    => cpu.down_key(0x0),
-            VirtualKeyCode::X    => cpu.down_key(0xA),
-            VirtualKeyCode::C    => cpu.down_key(0xB),
-            VirtualKeyCode::Key4 => cpu.down_key(0xC),
-            VirtualKeyCode::P    => cpu.down_key(0xD),
-            VirtualKeyCode::T    => cpu.down_key(0xE),
-            VirtualKeyCode::V    => cpu.down_key(0xF),
+            VirtualKeyCode::Key1 => keyboard.down_key(0x1),
+            VirtualKeyCode::Key2 => keyboard.down_key(0x2),
+            VirtualKeyCode::Key3 => keyboard.down_key(0x3),
+            VirtualKeyCode::Q    => keyboard.down_key(0x4),
+            VirtualKeyCode::W    => keyboard.down_key(0x5),
+            VirtualKeyCode::F    => keyboard.down_key(0x6),
+            VirtualKeyCode::A    => keyboard.down_key(0x7),
+            VirtualKeyCode::R    => keyboard.down_key(0x8),
+            VirtualKeyCode::S    => keyboard.down_key(0x9),
+            VirtualKeyCode::Z    => keyboard.down_key(0x0),
+            VirtualKeyCode::X    => keyboard.down_key(0xA),
+            VirtualKeyCode::C    => keyboard.down_key(0xB),
+            VirtualKeyCode::Key4 => keyboard.down_key(0xC),
+            VirtualKeyCode::P    => keyboard.down_key(0xD),
+            VirtualKeyCode::T    => keyboard.down_key(0xE),
+            VirtualKeyCode::V    => keyboard.down_key(0xF),
 
             _ => ()
           }
@@ -177,22 +180,22 @@ fn main() {
 
         Event::KeyboardInput(ElementState::Released, _, Some(vkey)) => {
           match vkey {
-            VirtualKeyCode::Key1 => cpu.release_key(0x1),
-            VirtualKeyCode::Key2 => cpu.release_key(0x2),
-            VirtualKeyCode::Key3 => cpu.release_key(0x3),
-            VirtualKeyCode::Q    => cpu.release_key(0x4),
-            VirtualKeyCode::W    => cpu.release_key(0x5),
-            VirtualKeyCode::F    => cpu.release_key(0x6),
-            VirtualKeyCode::A    => cpu.release_key(0x7),
-            VirtualKeyCode::R    => cpu.release_key(0x8),
-            VirtualKeyCode::S    => cpu.release_key(0x9),
-            VirtualKeyCode::Z    => cpu.release_key(0x0),
-            VirtualKeyCode::X    => cpu.release_key(0xA),
-            VirtualKeyCode::C    => cpu.release_key(0xB),
-            VirtualKeyCode::Key4 => cpu.release_key(0xC),
-            VirtualKeyCode::P    => cpu.release_key(0xD),
-            VirtualKeyCode::T    => cpu.release_key(0xE),
-            VirtualKeyCode::V    => cpu.release_key(0xF),
+            VirtualKeyCode::Key1 => keyboard.release_key(0x1),
+            VirtualKeyCode::Key2 => keyboard.release_key(0x2),
+            VirtualKeyCode::Key3 => keyboard.release_key(0x3),
+            VirtualKeyCode::Q    => keyboard.release_key(0x4),
+            VirtualKeyCode::W    => keyboard.release_key(0x5),
+            VirtualKeyCode::F    => keyboard.release_key(0x6),
+            VirtualKeyCode::A    => keyboard.release_key(0x7),
+            VirtualKeyCode::R    => keyboard.release_key(0x8),
+            VirtualKeyCode::S    => keyboard.release_key(0x9),
+            VirtualKeyCode::Z    => keyboard.release_key(0x0),
+            VirtualKeyCode::X    => keyboard.release_key(0xA),
+            VirtualKeyCode::C    => keyboard.release_key(0xB),
+            VirtualKeyCode::Key4 => keyboard.release_key(0xC),
+            VirtualKeyCode::P    => keyboard.release_key(0xD),
+            VirtualKeyCode::T    => keyboard.release_key(0xE),
+            VirtualKeyCode::V    => keyboard.release_key(0xF),
 
             _ => ()
           }
@@ -233,7 +236,7 @@ fn main() {
     let ticks_target = cpu_ticks_this_frame.floor() as u64;
     // Run the integer number of ticks.
     for _ in 0..ticks_target {
-      cpu.tick();
+      cpu.tick(&mut screen, &mut keyboard);
       cpu_ticks += 1;
     }
     // Account for leftover fractional ticks.
@@ -248,7 +251,7 @@ fn main() {
         // Get close to the repaint interval, but leave room to avoid
         // overshooting.
         while since_last_repaint < (target_repaint_interval - tick_slack) {
-          cpu.tick();
+          cpu.tick(&mut screen, &mut keyboard);
           cpu_ticks += 1;
           since_last_repaint = SteadyTime::now() - last_repaint;
         }
@@ -323,7 +326,7 @@ fn main() {
     }
 
     // Time to repaint!
-    cpu.screen.repaint(&mut frame);
+    screen.repaint(&mut frame);
     imgui_renderer.render(&mut frame, ui).unwrap();
     frame.finish().unwrap();
   }
