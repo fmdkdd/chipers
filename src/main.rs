@@ -25,8 +25,10 @@ mod glscreen;
 mod keyboard;
 mod memview;
 
-use chip8::cpu::{self, Cpu};
+use chip8::{Chip8, Memory};
+use chip8::cpu;
 use chip8::screen;
+use chip8::ram::WatchedRAM;
 use glscreen::GLScreen;
 use keyboard::SimpleKeyboard;
 use memview::MemoryEditor;
@@ -113,22 +115,20 @@ fn main() {
 
   let mut ui_state = UiState::new();
 
-  // Init Screen
+  // Init Chip8
   let mut screen = GLScreen::new(&display);
-
   let mut keyboard = SimpleKeyboard::new();
 
-  // Init CPU
+  let mut chip8 = Chip8::new(WatchedRAM::new());
+
   let mut f = File::open(args.arg_rom)
     .expect("Error opening ROM");
   let mut buf = Vec::new();
   f.read_to_end(&mut buf)
     .expect("Error reading ROM");
 
-  let mut cpu = Cpu::new();
-
-  cpu.reset();
-  cpu.load_rom(&buf);
+  chip8.reset();
+  chip8.load_rom(&buf);
 
   // Debug stuff
   let mut cpu_ticks = 0;
@@ -236,7 +236,7 @@ fn main() {
     let ticks_target = cpu_ticks_this_frame.floor() as u64;
     // Run the integer number of ticks.
     for _ in 0..ticks_target {
-      cpu.tick(&mut screen, &mut keyboard);
+      chip8.tick(&mut screen, &mut keyboard);
       cpu_ticks += 1;
     }
     // Account for leftover fractional ticks.
@@ -251,7 +251,7 @@ fn main() {
         // Get close to the repaint interval, but leave room to avoid
         // overshooting.
         while since_last_repaint < (target_repaint_interval - tick_slack) {
-          cpu.tick(&mut screen, &mut keyboard);
+          chip8.tick(&mut screen, &mut keyboard);
           cpu_ticks += 1;
           since_last_repaint = SteadyTime::now() - last_repaint;
         }
@@ -297,19 +297,19 @@ fn main() {
 
       ui.text(format!("{}tps ({}x)", tps, tps / 60).into());
 
-      memview.draw(&ui, im_str!("Memory Editor"),
-                   &cpu.ram, &cpu.ram_reads, &cpu.ram_writes);
-      cpu.reset_reads_writes();
+      // memview.draw(&ui, im_str!("Memory Editor"),
+      //              &chip8.mem(), &chip8.ram_reads, &chip8.ram_writes);
+      // chip8.reset_reads_writes();
 
       ui.window(im_str!("Registers"))
         .build(|| {
-          ui.text(format!("pc: {:02x}", cpu.pc).into());
-          ui.text(format!("i: {:02x}", cpu.i).into());
-          ui.text(format!("delay: {:02x}", cpu.delay_timer).into());
-          ui.text(format!("sound: {:02x}", cpu.sound_timer).into());
+          ui.text(format!("pc: {:02x}", chip8.cpu.pc).into());
+          ui.text(format!("i: {:02x}", chip8.cpu.i).into());
+          ui.text(format!("delay: {:02x}", chip8.cpu.delay_timer).into());
+          ui.text(format!("sound: {:02x}", chip8.cpu.sound_timer).into());
 
-          for r in 0..cpu.v.len() {
-            ui.text(format!("v{}: {:02x}", r, cpu.v[r]).into());
+          for r in 0..chip8.cpu.v.len() {
+            ui.text(format!("v{}: {:02x}", r, chip8.cpu.v[r]).into());
           }
         });
 

@@ -3,14 +3,12 @@ use self::rand::{ThreadRng, Rng};
 
 use std::collections::VecDeque;
 
-use chip8::{Screen, Keyboard};
+use chip8::{Keyboard, Memory, Screen};
 
-const RAM_LENGTH: usize = 0x1000;
 const NUM_REGS: usize = 0x10;
 pub const CYCLES_PER_TICK: u64 = 10;
 
 pub struct Cpu {
-  pub ram: [u8; RAM_LENGTH],
   pub v: [u8; NUM_REGS],
   pub pc: u16,
   pub i: u16,
@@ -22,14 +20,11 @@ pub struct Cpu {
 
   rng: ThreadRng,
 
-  pub ram_reads: [u64; RAM_LENGTH],
-  pub ram_writes: [u64; RAM_LENGTH],
 }
 
 impl Cpu {
   pub fn new() -> Self {
     Self {
-      ram: [0; RAM_LENGTH],
       v: [0; NUM_REGS],
       pc: 0,
       i: 0,
@@ -40,17 +35,11 @@ impl Cpu {
       key_register: 0,
 
       rng: rand::thread_rng(),
-      ram_reads: [0; RAM_LENGTH],
-      ram_writes: [0; RAM_LENGTH],
     }
   }
 
   pub fn reset(&mut self) {
     self.pc = 0x200;
-
-    for i in 0..RAM_LENGTH {
-      self.ram[i] = 0;
-    }
 
     for i in 0..NUM_REGS {
       self.v[i] = 0;
@@ -62,68 +51,25 @@ impl Cpu {
     self.stack.clear();
     self.asleep = false;
     self.key_register = 0;
-
-    self.load_font();
   }
 
-  fn load_font(&mut self) {
-    let font = [
-      0xf0, 0x90, 0x90, 0x90, 0xf0, // 0
-      0x20, 0x60, 0x20, 0x20, 0x70, // 1
-      0xf0, 0x10, 0xf0, 0x80, 0xf0, // 2
-      0xf0, 0x10, 0xf0, 0x10, 0xf0, // 3
-      0x90, 0x90, 0xf0, 0x10, 0x10, // 4
-      0xf0, 0x80, 0xf0, 0x10, 0xf0, // 5
-      0xf0, 0x80, 0xf0, 0x90, 0xf0, // 6
-      0xf0, 0x10, 0x20, 0x40, 0x40, // 7
-      0xf0, 0x90, 0xf0, 0x90, 0xf0, // 8
-      0xf0, 0x90, 0xf0, 0x10, 0xf0, // 9
-      0xf0, 0x90, 0xf0, 0x90, 0x90, // A
-      0xe0, 0x90, 0xe0, 0x90, 0xe0, // B
-      0xf0, 0x80, 0x80, 0x80, 0xf0, // C
-      0xe0, 0x90, 0x90, 0x90, 0xe0, // D
-      0xf0, 0x80, 0xf0, 0x80, 0xf0, // E
-      0xf0, 0x80, 0xf0, 0x80, 0x80  // F
-    ];
-    self.ram[..font.len()].copy_from_slice(&font);
-  }
-
-  fn ram_read(&mut self, addr: usize) -> u8 {
-    self.ram_reads[addr] += 1;
-    self.ram[addr]
-  }
-
-  fn ram_write(&mut self, addr: usize, v: u8) {
-    self.ram_writes[addr] += 1;
-    self.ram[addr] = v;
-  }
-
-  pub fn reset_reads_writes(&mut self) {
-    for i in 0..RAM_LENGTH {
-      self.ram_reads[i] = 0;
-      self.ram_writes[i] = 0;
-    }
-  }
-
-  pub fn load_rom(&mut self, rom: &[u8]) {
-    self.ram[0x200..0x200 + rom.len()].copy_from_slice(&rom);
-  }
-
-  fn step<S: Screen, K: Keyboard>(&mut self, screen: &mut S, keyboard: &mut K) {
+  fn step<M: Memory, S: Screen, K: Keyboard>
+    (&mut self, ram: &mut M, screen: &mut S, keyboard: &mut K) {
     if self.asleep { return }
 
     let pc = self.pc;
 
-    let opcode = (self.ram_read(pc as usize) as u16) << 8
-      | (self.ram_read((pc + 1) as usize) as u16);
+    let opcode = (ram.read(pc as usize) as u16) << 8
+      | (ram.read((pc + 1) as usize) as u16);
     self.pc += 2;
 
-    self.exec(opcode, screen, keyboard);
+    self.exec(opcode, ram, screen, keyboard);
   }
 
-  pub fn tick<S: Screen, K: Keyboard>(&mut self, screen: &mut S, keyboard: &mut K) {
+  pub fn tick<M: Memory, S: Screen, K: Keyboard>
+    (&mut self, ram: &mut M, screen: &mut S, keyboard: &mut K) {
     for _ in 0..CYCLES_PER_TICK {
-      self.step(screen, keyboard);
+      self.step(ram, screen, keyboard);
     }
 
     if self.delay_timer > 0 {
@@ -135,7 +81,8 @@ impl Cpu {
     }
   }
 
-  fn exec<S: Screen, K: Keyboard>(&mut self, opcode: u16, screen: &mut S, keyboard: &mut K) {
+  fn exec<M: Memory, S: Screen, K: Keyboard>
+    (&mut self, opcode: u16, ram: &mut M, screen: &mut S, keyboard: &mut K) {
     let addr = opcode & 0x0FFF;
     let x = ((opcode & 0x0F00) >> 8) as usize;
     let y = ((opcode & 0x00F0) >> 4) as usize;
@@ -218,7 +165,7 @@ impl Cpu {
         let mut sprite = Vec::new();
 
         for i in (self.i)..(self.i + n) {
-          let p = self.ram_read(i as usize);
+          let p = ram.read(i as usize);
           for b in 0..8 {
             sprite.push(if (p & (1 << (7 - b))) > 0 { true } else { false });
           }
@@ -266,21 +213,20 @@ impl Cpu {
             let d = (self.v[x] % 100) / 10;
             let u = self.v[x] % 10;
             let i = self.i as usize;
-            self.ram_write(i, h);
-            self.ram_write(i + 1, d);
-            self.ram_write(i + 2, u);
+            ram.write(i, h);
+            ram.write(i + 1, d);
+            ram.write(i + 2, u);
           },
 
           0x55 => {
             let start = self.i as usize;
-            self.ram[start..(start + NUM_REGS)]
-              .copy_from_slice(&self.v);
+            ram.write_seq(start, &self.v);
           },
 
           0x65 => {
             let si = self.i as usize;
             for i in 0..(x + 1) {
-              self.v[i] = self.ram_read(si + i);
+              self.v[i] = ram.read(si + i);
             }
           },
 
