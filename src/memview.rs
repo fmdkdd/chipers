@@ -1,4 +1,4 @@
-use imgui::{Ui, ImString};
+use imgui::{Ui, ImStr};
 
 pub struct MemoryEditor {
   open: bool,
@@ -13,12 +13,12 @@ impl MemoryEditor {
     }
   }
 
-  pub fn draw(&mut self, ui: &Ui, title: ImString, mem: &[u8],
+  pub fn draw(&mut self, ui: &Ui, title: &ImStr, mem: &[u8],
               reads: &[u64], writes: &[u64]) {
     let columns = self.columns;
     let rows = mem.len() / columns;
 
-    ui.window(&title)
+    ui.window(title)
       .opened(&mut self.open)
       .build(|| {
         let mut a = 0;

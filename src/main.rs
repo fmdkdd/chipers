@@ -292,9 +292,9 @@ fn main() {
 
       ui.text(im_str!("{}tps ({}x)", tps, tps / 60));
 
-      // memview.draw(&ui, im_str!("Memory Editor"),
-      //              &chip8.mem(), &chip8.ram_reads, &chip8.ram_writes);
-      // chip8.reset_reads_writes();
+      memview.draw(&ui, im_str!("Memory Editor"),
+                   &chip8.ram.read_all(), &chip8.ram.reads, &chip8.ram.writes);
+      chip8.ram.reset_reads_writes();
 
       ui.window(im_str!("Registers"))
         .build(|| {
