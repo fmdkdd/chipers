@@ -23,7 +23,7 @@ pub trait Memory {
 
 pub trait Screen {
   fn clear(&mut self);
-  fn draw_sprite(&mut self, x: usize, y: usize, sprite: &[bool]) -> bool;
+  fn draw_sprite(&mut self, x: usize, y: usize, sprite: &[u8]) -> u8;
 }
 
 pub trait Keyboard {

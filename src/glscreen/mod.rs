@@ -116,17 +116,8 @@ impl GLScreen {
       p_texts.push_front(tex);
     }
 
-    let mut pixels = [0; SCREEN_WIDTH * SCREEN_HEIGHT];
-    let mut i = 0;
-    for p in self.screen.pixels() {
-      if *p {
-        pixels[i] = 1;
-      } else {
-        pixels[i] = 0;
-      }
-      i += 1;
-    }
-    self.pixel_buffer.write(&pixels);
+    // Blit the logical screen to the pixel buffer, and then to the texture
+    self.pixel_buffer.write(&self.screen.pixels());
 
     // TODO: Maybe create new textures?
     // Should test with full speed to see if it impacts the frame time.
@@ -190,7 +181,7 @@ impl chip8::Screen for GLScreen {
     self.screen.clear();
   }
 
-  fn draw_sprite(&mut self, x: usize, y: usize, sprite: &[bool]) -> bool {
+  fn draw_sprite(&mut self, x: usize, y: usize, sprite: &[u8]) -> u8 {
     self.screen.draw_sprite(x, y, sprite)
   }
 }

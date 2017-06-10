@@ -124,15 +124,15 @@ impl Cpu {
 
         for i in (self.i)..(self.i + n) {
           let p = ram.read(i as usize);
-          for b in 0..8 {
-            sprite.push(if (p & (1 << (7 - b))) > 0 { true } else { false });
+          for b in (0..8).rev() {
+            sprite.push((p & (1 << b)) >> b);
           }
         }
 
         // Draw
         self.v[0xF] = screen.draw_sprite(self.v[x] as usize,
-                                              self.v[y] as usize,
-                                              &sprite) as u8;
+                                         self.v[y] as usize,
+                                         &sprite);
       },
 
       0xE000 => {
