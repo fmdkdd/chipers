@@ -6,7 +6,8 @@ use chip8::{self, Keyboard, Memory, Screen};
 
 const NUM_REGS: usize = 0x10;
 
-pub struct Cpu {
+pub struct Cpu<M: Memory, S: Screen, K: Keyboard> {
+  phantom: PhantomData<M, S, K>,
   pub v: [u8; NUM_REGS],
   pub pc: u16,
   pub i: u16,
@@ -20,7 +21,7 @@ pub struct Cpu {
 
 }
 
-impl Cpu {
+impl<M: Memory, S: Screen, K: Keyboard> Cpu<M, S, K> {
   pub fn new() -> Self {
     Self {
       v: [0; NUM_REGS],
@@ -35,10 +36,8 @@ impl Cpu {
       rng: rand::thread_rng(),
     }
   }
-}
 
-impl Cpu {
-  fn exec<M, S, K>(&mut self, opcode: u16, ram: &mut M, screen: &mut S,
+  fn exec(&mut self, opcode: u16, ram: &mut M, screen: &mut S,
                    keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
     let addr = opcode & 0x0FFF;
     let x = ((opcode & 0x0F00) >> 8) as usize;
@@ -196,7 +195,11 @@ impl Cpu {
   }
 }
 
-impl chip8::CPU for Cpu {
+impl<MM: Memory, SS: Screen, KK: Keyboard> chip8::CPU for Cpu<MM, SS, KK> {
+  type M = MM;
+  type S = SS;
+  type K = KK;
+
   fn reset(&mut self) {
     self.pc = 0x200;
 
@@ -212,8 +215,7 @@ impl chip8::CPU for Cpu {
     self.key_register = 0;
   }
 
-  fn clock<M, S, K>(&mut self, ram: &mut M, screen: &mut S,
-                    keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
+  fn clock(&mut self, ram: &mut Self::M, screen: &mut Self::S, keyboard: &mut Self::K) {
     if self.waiting_for_key {
       // First key down wakes the CPU
       if let Some(k) = keyboard.first_pressed_key() {

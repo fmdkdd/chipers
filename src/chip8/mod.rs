@@ -1,15 +1,19 @@
-pub mod cpu;
+//pub mod cpu;
+pub mod keyboard;
 pub mod memory;
 pub mod screen;
-pub mod keyboard;
+pub mod threaded_cpu;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Traits used as interfaces for plugging different components into the machine
 
 pub trait CPU {
+  type M: Memory;
+  type S: Screen;
+  type K: Keyboard;
+
   fn reset(&mut self);
-  fn clock<M, S, K>(&mut self, mem: &mut M, screen: &mut S,
-                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard;
+  fn clock(&mut self, mem: &mut Self::M, screen: &mut Self::S, keyboard: &mut Self::K);
   fn clock_60hz(&mut self);
 }
 
@@ -37,16 +41,16 @@ pub trait Keyboard {
 const DEFAULT_FREQUENCY: u64 = 600;
 const PERIOD_60HZ: f32 = 1000.0 / 60.0;
 
-pub struct Chip8<C: CPU, M: Memory> {
+pub struct Chip8<C: CPU> {
   pub freq: u64,
   cycles: f64,
   counter_60hz: f32,
   pub cpu: C,
-  pub ram: M,
+  pub ram: C::M,
 }
 
-impl<C: CPU, M: Memory> Chip8<C, M> {
-  pub fn new(cpu: C, ram: M) -> Self {
+impl<C: CPU> Chip8<C> {
+  pub fn new(cpu: C, ram: C::M) -> Self {
     Self {
       freq: DEFAULT_FREQUENCY,
       cycles: 0.0,
@@ -92,8 +96,7 @@ impl<C: CPU, M: Memory> Chip8<C, M> {
     self.ram.write_seq(0x200, &rom);
   }
 
-  pub fn run<S, K>(&mut self, ms: f32, screen: &mut S,
-                   keyboard: &mut K) where S: Screen, K: Keyboard {
+  pub fn run(&mut self, ms: f32, screen: &mut C::S, keyboard: &mut C::K)  {
     self.cycles += (ms * (self.freq as f32) / 1000.0) as f64;
 
     while self.cycles > 0.0 {

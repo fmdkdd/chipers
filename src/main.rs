@@ -20,7 +20,7 @@ use imgui::{ImGui, ImVec2};
 use time::{Duration, SteadyTime};
 
 use chip8::Chip8;
-use chip8::cpu::{self, Cpu};
+use chip8::threaded_cpu::{self, ThreadedCpu as Cpu};
 use chip8::keyboard::SimpleKeyboard;
 use chip8::memory::WatchedRAM;
 use glscreen::GLScreen;
@@ -112,7 +112,8 @@ fn main() {
   // Init Chip8 and components
   let mut screen = GLScreen::new(&display, args.flag_plain);
   let mut keyboard = SimpleKeyboard::new();
-  let mut chip8 = Chip8::new(Cpu::new(), WatchedRAM::new());
+  let mut chip8: Chip8<Cpu<WatchedRAM, GLScreen, SimpleKeyboard>>
+    = Chip8::new(Cpu::new(), WatchedRAM::new());
   chip8.freq = args.flag_cps;
 
   let mut f = File::open(args.arg_rom)
