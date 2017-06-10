@@ -41,6 +41,7 @@ Options:
   -f <hz>, --fps <hz>     Set the repaint frequency [default: 60].
   -c <hz>, --cps <hz>     Set the CPU frequency [default: 600].
   -t, --turbo             Emulate as fast as possible (for benchmarking).
+  -p, --plain             Do not use fancy CRT shader (much faster).
   -d, --debug             Show debug information.
 ";
 
@@ -51,6 +52,7 @@ struct Args {
   flag_fps: usize,
   flag_cps: u64,
   flag_turbo: bool,
+  flag_plain: bool,
   flag_debug: bool,
 }
 
@@ -110,7 +112,7 @@ fn main() {
   let mut ui_state = UiState::new();
 
   // Init Chip8 and components
-  let mut screen = GLScreen::new(&display);
+  let mut screen = GLScreen::new(&display, args.flag_plain);
   let mut keyboard = SimpleKeyboard::new();
   let mut chip8 = Chip8::new(Cpu::new(), WatchedRAM::new());
 
