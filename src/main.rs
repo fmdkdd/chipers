@@ -90,10 +90,6 @@ fn main() {
   let target_repaint_interval = Duration::microseconds(
     (1000.0 * target_repaint_ms) as i64);
 
-  // Target CPU frequency
-  let cpu_target_tick_frequency = args.flag_cps as f32 / cpu::CYCLES_PER_TICK as f32;
-  let cpu_ticks_per_frame = cpu_target_tick_frequency / args.flag_fps as f32;
-
   // Init Glium
   let zoom = args.flag_zoom;
 
@@ -115,6 +111,7 @@ fn main() {
   let mut screen = GLScreen::new(&display, args.flag_plain);
   let mut keyboard = SimpleKeyboard::new();
   let mut chip8 = Chip8::new(Cpu::new(), WatchedRAM::new());
+  chip8.freq = args.flag_cps;
 
   let mut f = File::open(args.arg_rom)
     .expect("Error opening ROM");
@@ -144,6 +141,7 @@ fn main() {
   let sleep_slack = Duration::microseconds(500);
 
   'running: loop {
+    // Handle any key/mouse events
     for event in display.poll_events() {
       match event {
         Event::Closed
@@ -212,73 +210,35 @@ fn main() {
       }
     }
 
+    // Update imgui mouse state
     ui_state.update_mouse(&mut imgui);
     ui_state.mouse_wheel = 0.0; // Clear value for this frame
 
-    // Create frame and signal ImGui
-    let mut frame = display.draw();
+    // How much time has elapsed since last frame?
     let now = SteadyTime::now();
-    let window = display.get_window().unwrap();
-    let size_points = window.get_inner_size_points().unwrap();
-    let size_pixels = window.get_inner_size_pixels().unwrap();
-    let ui = imgui.frame(size_points, size_pixels,
-                         (now - last_ui_time)
-                         .num_microseconds().unwrap() as f32 / 1_000_000.0);
-    last_ui_time = now;
+    let real_dt = now - last_repaint;
+    let real_dt_ms = real_dt.num_microseconds().unwrap() as f32 / 1000.0;
+    last_repaint = now;
 
-    // How many ticks should we run this frame?  Can be non-integer.
-    cpu_ticks_this_frame += cpu_ticks_per_frame;
-    let ticks_target = cpu_ticks_this_frame.floor() as u64;
-    // Run the integer number of ticks.
-    for _ in 0..ticks_target {
-      chip8.tick(&mut screen, &mut keyboard);
-      cpu_ticks += 1;
-    }
-    // Account for leftover fractional ticks.
-    cpu_ticks_this_frame -= ticks_target as f32;
+    // Emulate the Chip8 for that period
+    let before_emu = SteadyTime::now();
+    chip8.run(real_dt_ms, &mut screen, &mut keyboard);
+    let emu_dt = SteadyTime::now() - before_emu;
 
-    let mut since_last_repaint = SteadyTime::now() - last_repaint;
+    // Create frame and render
+    let mut frame = display.draw();
+    screen.repaint(&mut frame);
 
-    // Still have time for this frame.  What do we do?
-    if since_last_repaint < target_repaint_interval {
-      // In turbo mode, use the extra frame time to emulate as much as possible.
-      if args.flag_turbo {
-        // Get close to the repaint interval, but leave room to avoid
-        // overshooting.
-        while since_last_repaint < (target_repaint_interval - tick_slack) {
-          chip8.tick(&mut screen, &mut keyboard);
-          cpu_ticks += 1;
-          since_last_repaint = SteadyTime::now() - last_repaint;
-        }
-      }
-      // Without turbo, just sleep
-      else {
-        // Sleep granularity depends on platform.  Subtract some slack to avoid
-        // oversleeping.
-        if target_repaint_interval - since_last_repaint > sleep_slack {
-          let wait = (target_repaint_interval - since_last_repaint - sleep_slack)
-            .to_std().unwrap();
-          std::thread::sleep(wait);
-        }
-      }
-
-      // If there is still time left, busy wait
-      while since_last_repaint < target_repaint_interval {
-        since_last_repaint = SteadyTime::now() - last_repaint;
-      }
-    }
-    // Above target interval: we took too much time and are late to repaint.
-    else {
-      overtimes += 1;
-    }
-
-    last_repaint = SteadyTime::now();
-
+    // Fill the debugging GUI if enabled
     if args.flag_debug {
+      let window = display.get_window().unwrap();
+      let size_points = window.get_inner_size_points().unwrap();
+      let size_pixels = window.get_inner_size_pixels().unwrap();
+      let ui = imgui.frame(size_points, size_pixels, real_dt_ms / 1000.0);
+
       num_repaints += 1;
 
-      fps_history[fps_history_idx % FPS_HISTORY_LENGTH] =
-        since_last_repaint.num_microseconds().unwrap() as f32 / 1000f32;
+      fps_history[fps_history_idx % FPS_HISTORY_LENGTH] = real_dt_ms;
       fps_history_idx += 1;
 
       ui.plot_histogram(
@@ -308,21 +268,59 @@ fn main() {
           }
         });
 
-      if num_repaints == args.flag_fps {
-        let since_last_report = SteadyTime::now() - last_tps_report;
-        last_tps_report = SteadyTime::now();
-        avg_fps = fps_history.iter().fold(0f32, |a, &b| a + b)
-          / FPS_HISTORY_LENGTH as f32;
-        tps = cpu_ticks * 1000 / since_last_report.num_milliseconds();
+      // if num_repaints == args.flag_fps {
+      //   let since_last_report = SteadyTime::now() - last_tps_report;
+      //   last_tps_report = SteadyTime::now();
+      //   avg_fps = fps_history.iter().fold(0f32, |a, &b| a + b)
+      //     / FPS_HISTORY_LENGTH as f32;
+      //   tps = cpu_ticks * 1000 / since_last_report.num_milliseconds();
 
-        num_repaints = 0;
-        cpu_ticks = 0;
-      }
+      //   num_repaints = 0;
+      //   cpu_ticks = 0;
+      // }
+
+      imgui_renderer.render(&mut frame, ui).unwrap();
     }
 
-    // Time to repaint!
-    screen.repaint(&mut frame);
-    imgui_renderer.render(&mut frame, ui).unwrap();
+    // Send to GPU
     frame.finish().unwrap();
+
+    // // In turbo mode, use the remaining time to emulate as much as possible.
+    // if args.flag_turbo {
+    //   // Get close to the repaint interval, but leave room to avoid
+    //   // overshooting.
+    //   while since_last_repaint < (target_repaint_interval - tick_slack) {
+    //     chip8.run(&mut screen, &mut keyboard);
+    //     since_last_repaint = SteadyTime::now() - last_repaint;
+    //   }
+    // }
+
+
+
+    // // Still have time for this frame.  What do we do?
+    // if since_last_repaint < target_repaint_interval {
+    //   // Without turbo, just sleep
+    //   else {
+    //     // Sleep granularity depends on platform.  Subtract some slack to avoid
+    //     // oversleeping.
+    //     if target_repaint_interval - since_last_repaint > sleep_slack {
+    //       let wait = (target_repaint_interval - since_last_repaint - sleep_slack)
+    //         .to_std().unwrap();
+    //       std::thread::sleep(wait);
+    //     }
+    //   }
+
+    //   // If there is still time left, busy wait
+    //   while since_last_repaint < target_repaint_interval {
+    //     since_last_repaint = SteadyTime::now() - last_repaint;
+    //   }
+    // }
+    // // Above target interval: we took too much time and are late to repaint.
+    // else {
+    //   overtimes += 1;
+    // }
+
+    // last_repaint = SteadyTime::now();
+
   }
 }

@@ -5,7 +5,6 @@ use std::collections::VecDeque;
 use chip8::{self, Keyboard, Memory, Screen};
 
 const NUM_REGS: usize = 0x10;
-pub const CYCLES_PER_TICK: u64 = 10;
 
 pub struct Cpu {
   pub v: [u8; NUM_REGS],
@@ -213,14 +212,13 @@ impl chip8::CPU for Cpu {
     self.key_register = 0;
   }
 
-  fn step<M, S, K>(&mut self, ram: &mut M, screen: &mut S,
-                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
+  fn clock<M, S, K>(&mut self, ram: &mut M, screen: &mut S,
+                    keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
     if self.waiting_for_key {
       // First key down wakes the CPU
       if let Some(k) = keyboard.first_pressed_key() {
         self.v[self.key_register] = k;
         self.waiting_for_key = false;
-        return
       }
       return
     }
@@ -234,12 +232,8 @@ impl chip8::CPU for Cpu {
     self.exec(opcode, ram, screen, keyboard);
   }
 
-  fn tick<M, S, K>(&mut self, ram: &mut M, screen: &mut S,
-                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
-    for _ in 0..CYCLES_PER_TICK {
-      self.step(ram, screen, keyboard);
-    }
-
+  // This function should be called at 60Hz, regardless of the CPU frequency
+  fn clock_60hz(&mut self) {
     if self.delay_timer > 0 {
       self.delay_timer -= 1;
     }

@@ -8,10 +8,9 @@ pub mod keyboard;
 
 pub trait CPU {
   fn reset(&mut self);
-  fn step<M, S, K>(&mut self, mem: &mut M, screen: &mut S,
+  fn clock<M, S, K>(&mut self, mem: &mut M, screen: &mut S,
                    keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard;
-  fn tick<M, S, K>(&mut self, mem: &mut M, screen: &mut S,
-                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard;
+  fn clock_60hz(&mut self);
 }
 
 pub trait Memory {
@@ -35,7 +34,13 @@ pub trait Keyboard {
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Top-level machine
 
+const DEFAULT_FREQUENCY: u64 = 600;
+const PERIOD_60HZ: f32 = 1000.0 / 60.0;
+
 pub struct Chip8<C: CPU, M: Memory> {
+  pub freq: u64,
+  cycles: f64,
+  counter_60hz: f32,
   pub cpu: C,
   pub ram: M,
 }
@@ -43,12 +48,18 @@ pub struct Chip8<C: CPU, M: Memory> {
 impl<C: CPU, M: Memory> Chip8<C, M> {
   pub fn new(cpu: C, ram: M) -> Self {
     Self {
+      freq: DEFAULT_FREQUENCY,
+      cycles: 0.0,
+      counter_60hz: 0.0,
       cpu,
       ram,
     }
   }
 
   pub fn reset(&mut self) {
+    self.cycles = 0.0;
+    self.counter_60hz = 0.0;
+
     self.cpu.reset();
     self.ram.reset();
 
@@ -81,13 +92,19 @@ impl<C: CPU, M: Memory> Chip8<C, M> {
     self.ram.write_seq(0x200, &rom);
   }
 
-  pub fn step<S, K>(&mut self, screen: &mut S,
-                    keyboard: &mut K) where S: Screen, K: Keyboard {
-    self.cpu.step(&mut self.ram, screen, keyboard);
-  }
+  pub fn run<S, K>(&mut self, ms: f32, screen: &mut S,
+                   keyboard: &mut K) where S: Screen, K: Keyboard {
+    self.cycles += (ms * (self.freq as f32) / 1000.0) as f64;
 
-  pub fn tick<S, K>(&mut self, screen: &mut S,
-                    keyboard: &mut K) where S: Screen, K: Keyboard {
-    self.cpu.tick(&mut self.ram, screen, keyboard);
+    while self.cycles > 0.0 {
+      self.cpu.clock(&mut self.ram, screen, keyboard);
+      self.cycles -= 1.0;
+    }
+
+    self.counter_60hz += ms;
+    while self.counter_60hz > PERIOD_60HZ {
+      self.cpu.clock_60hz();
+      self.counter_60hz -= PERIOD_60HZ;
+    }
   }
 }
