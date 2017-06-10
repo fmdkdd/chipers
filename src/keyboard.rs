@@ -13,7 +13,7 @@ impl SimpleKeyboard {
     }
   }
 
-  pub fn down_key(&mut self, key: u8) {
+  pub fn press_key(&mut self, key: u8) {
     self.pressed_keys[key as usize] = true
   }
 
@@ -23,7 +23,16 @@ impl SimpleKeyboard {
 }
 
 impl chip8::Keyboard for SimpleKeyboard {
-  fn is_key_down(&self, key: u8) -> bool {
+  fn is_pressed(&self, key: u8) -> bool {
     self.pressed_keys[key as usize]
+  }
+
+  fn first_pressed_key(&self) -> Option<u8> {
+    for k in 0..NUM_KEYS {
+      if self.pressed_keys[k] {
+        return Some(k as u8)
+      }
+    }
+    return None
   }
 }

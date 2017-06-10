@@ -152,22 +152,22 @@ fn main() {
 
         Event::KeyboardInput(ElementState::Pressed, _, Some(vkey)) => {
           match vkey {
-            VirtualKeyCode::Key1 => keyboard.down_key(0x1),
-            VirtualKeyCode::Key2 => keyboard.down_key(0x2),
-            VirtualKeyCode::Key3 => keyboard.down_key(0x3),
-            VirtualKeyCode::Q    => keyboard.down_key(0x4),
-            VirtualKeyCode::W    => keyboard.down_key(0x5),
-            VirtualKeyCode::F    => keyboard.down_key(0x6),
-            VirtualKeyCode::A    => keyboard.down_key(0x7),
-            VirtualKeyCode::R    => keyboard.down_key(0x8),
-            VirtualKeyCode::S    => keyboard.down_key(0x9),
-            VirtualKeyCode::Z    => keyboard.down_key(0x0),
-            VirtualKeyCode::X    => keyboard.down_key(0xA),
-            VirtualKeyCode::C    => keyboard.down_key(0xB),
-            VirtualKeyCode::Key4 => keyboard.down_key(0xC),
-            VirtualKeyCode::P    => keyboard.down_key(0xD),
-            VirtualKeyCode::T    => keyboard.down_key(0xE),
-            VirtualKeyCode::V    => keyboard.down_key(0xF),
+            VirtualKeyCode::Key1 => keyboard.press_key(0x1),
+            VirtualKeyCode::Key2 => keyboard.press_key(0x2),
+            VirtualKeyCode::Key3 => keyboard.press_key(0x3),
+            VirtualKeyCode::Q    => keyboard.press_key(0x4),
+            VirtualKeyCode::W    => keyboard.press_key(0x5),
+            VirtualKeyCode::F    => keyboard.press_key(0x6),
+            VirtualKeyCode::A    => keyboard.press_key(0x7),
+            VirtualKeyCode::R    => keyboard.press_key(0x8),
+            VirtualKeyCode::S    => keyboard.press_key(0x9),
+            VirtualKeyCode::Z    => keyboard.press_key(0x0),
+            VirtualKeyCode::X    => keyboard.press_key(0xA),
+            VirtualKeyCode::C    => keyboard.press_key(0xB),
+            VirtualKeyCode::Key4 => keyboard.press_key(0xC),
+            VirtualKeyCode::P    => keyboard.press_key(0xD),
+            VirtualKeyCode::T    => keyboard.press_key(0xE),
+            VirtualKeyCode::V    => keyboard.press_key(0xF),
 
             _ => ()
           }

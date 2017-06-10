@@ -26,7 +26,8 @@ pub trait Screen {
 }
 
 pub trait Keyboard {
-  fn is_key_down(&self, key: u8) -> bool;
+  fn is_pressed(&self, key: u8) -> bool;
+  fn first_pressed_key(&self) -> Option<u8>;
 }
 
 

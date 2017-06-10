@@ -14,7 +14,7 @@ pub struct Cpu {
   pub delay_timer: u8,
   pub sound_timer: u8,
   stack: VecDeque<u16>,
-  asleep: bool,
+  waiting_for_key: bool,
   key_register: usize,
 
   rng: ThreadRng,
@@ -30,7 +30,7 @@ impl Cpu {
       delay_timer: 0,
       sound_timer: 0,
       stack: VecDeque::new(),
-      asleep: false,
+      waiting_for_key: false,
       key_register: 0,
 
       rng: rand::thread_rng(),
@@ -137,8 +137,8 @@ impl Cpu {
 
       0xE000 => {
         match opcode & 0x00FF {
-          0x9E => if keyboard.is_key_down(self.v[x]) { self.pc += 2 },
-          0xA1 => if !keyboard.is_key_down(self.v[x]) { self.pc += 2 },
+          0x9E => if keyboard.is_pressed(self.v[x]) { self.pc += 2 },
+          0xA1 => if !keyboard.is_pressed(self.v[x]) { self.pc += 2 },
 
           _ => panic!("Unknown upcode {:x}", opcode)
         }
@@ -152,7 +152,7 @@ impl Cpu {
           0x18 => self.sound_timer = self.v[x],
 
           0x0A => {
-            self.asleep = true;
+            self.waiting_for_key = true;
             // Keep track of the register to put the key code in.
             self.key_register = x;
           },
@@ -209,13 +209,21 @@ impl chip8::CPU for Cpu {
     self.delay_timer = 0;
     self.sound_timer = 0;
     self.stack.clear();
-    self.asleep = false;
+    self.waiting_for_key = false;
     self.key_register = 0;
   }
 
   fn step<M, S, K>(&mut self, ram: &mut M, screen: &mut S,
                    keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
-    if self.asleep { return }
+    if self.waiting_for_key {
+      // First key down wakes the CPU
+      if let Some(k) = keyboard.first_pressed_key() {
+        self.v[self.key_register] = k;
+        self.waiting_for_key = false;
+        return
+      }
+      return
+    }
 
     let pc = self.pc;
 
