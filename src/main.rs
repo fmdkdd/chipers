@@ -26,7 +26,9 @@ use chip8::memory::WatchedRAM;
 use glscreen::GLScreen;
 use memview::MemoryEditor;
 
-const FPS_HISTORY_LENGTH: usize = 128;
+const TPF_HISTORY_LENGTH: usize = 128;
+const CPS_HISTORY_LENGTH: usize = 128;
+const TPF_REFRESH_PERIOD: f32 = 500.0; // ms
 
 const USAGE: &'static str = "
 A Chip-8 emulator in Rust.
@@ -123,19 +125,19 @@ fn main() {
   chip8.load_rom(&buf);
 
   // Debug stuff
-  let mut cpu_ticks = 0;
-  let mut last_tps_report = SteadyTime::now();
-  let mut fps_history = [0f32; FPS_HISTORY_LENGTH];
-  let mut fps_history_idx = 0;
-  let mut tps = 0;
-  let mut avg_fps = 0.0;
+  let mut tpf_history = [0f32; TPF_HISTORY_LENGTH]; // time per frame
+  let mut tpf_history_idx = 0;
+  let mut avg_tpf = 0.0;
+  let mut cps_history = [0f32; CPS_HISTORY_LENGTH]; // chip8 per second
+  let mut cps_history_idx = 0;
+  let mut avg_cps = 0.0;
+
+  let mut tpf_refresh_counter = 0.0;
   let mut overtimes = 0u64;
   let mut memview = MemoryEditor::new();
-  let mut last_ui_time = SteadyTime::now();
 
   // Main loop
   let mut cpu_ticks_this_frame = 0f32;
-  let mut num_repaints = 0;
   let mut last_repaint = SteadyTime::now();
   let tick_slack = Duration::microseconds(100);
   let sleep_slack = Duration::microseconds(500);
@@ -236,21 +238,30 @@ fn main() {
       let size_pixels = window.get_inner_size_pixels().unwrap();
       let ui = imgui.frame(size_points, size_pixels, real_dt_ms / 1000.0);
 
-      num_repaints += 1;
-
-      fps_history[fps_history_idx % FPS_HISTORY_LENGTH] = real_dt_ms;
-      fps_history_idx += 1;
+      tpf_history[tpf_history_idx] = real_dt_ms;
+      tpf_history_idx = (tpf_history_idx + 1) % TPF_HISTORY_LENGTH;
 
       ui.plot_histogram(
-        im_str!("frame time (ms)\navg: {:.3}ms\novertimes: {}",
-                avg_fps, overtimes), &fps_history)
-        .values_offset(fps_history_idx)
-        .graph_size(ImVec2::new(FPS_HISTORY_LENGTH as f32, 40.0))
+        im_str!("time per frame (ms)\navg: {:.3}ms\novertimes: {}",
+                avg_tpf, overtimes), &tpf_history)
+        .values_offset(tpf_history_idx)
+        .graph_size(ImVec2::new(TPF_HISTORY_LENGTH as f32, 40.0))
         .scale_min(0.0)
         .scale_max(target_repaint_ms * 2.0)
         .build();
 
-      ui.text(im_str!("{}tps ({}x)", tps, tps / 60));
+      // Going for nanoseconds otherwise we'll get zero!
+      let emu_dt_ms = emu_dt.num_nanoseconds().unwrap() as f32 / 1_000_000.0;
+      cps_history[cps_history_idx] = real_dt_ms / emu_dt_ms * 1000.0;
+      cps_history_idx = (cps_history_idx + 1) % CPS_HISTORY_LENGTH;
+
+      ui.plot_histogram(
+        im_str!("chip8 per second\navg: {:.3}cps", avg_cps), &cps_history)
+        .values_offset(cps_history_idx)
+        .graph_size(ImVec2::new(CPS_HISTORY_LENGTH as f32, 40.0))
+        .scale_min(0.0)
+        .scale_max(avg_cps * 2.0)
+        .build();
 
       memview.draw(&ui, im_str!("Memory Editor"),
                    &chip8.ram.read_all(), &chip8.ram.reads, &chip8.ram.writes);
@@ -268,16 +279,16 @@ fn main() {
           }
         });
 
-      // if num_repaints == args.flag_fps {
-      //   let since_last_report = SteadyTime::now() - last_tps_report;
-      //   last_tps_report = SteadyTime::now();
-      //   avg_fps = fps_history.iter().fold(0f32, |a, &b| a + b)
-      //     / FPS_HISTORY_LENGTH as f32;
-      //   tps = cpu_ticks * 1000 / since_last_report.num_milliseconds();
+      // Update TPF and CPS averages every second
+      tpf_refresh_counter += real_dt_ms;
+      while tpf_refresh_counter > TPF_REFRESH_PERIOD {
+        avg_tpf = tpf_history.iter().fold(0f32, |a, &b| a + b)
+          / TPF_HISTORY_LENGTH as f32;
+        avg_cps = cps_history.iter().fold(0f32, |a, &b| a + b)
+          / CPS_HISTORY_LENGTH as f32;
 
-      //   num_repaints = 0;
-      //   cpu_ticks = 0;
-      // }
+        tpf_refresh_counter -= TPF_REFRESH_PERIOD;
+      }
 
       imgui_renderer.render(&mut frame, ui).unwrap();
     }
