@@ -5,8 +5,17 @@ authors = ["fmdkdd"]
 
 [dependencies]
 rand = "0.3"
-docopt = "0.6"
-rustc-serialize = "0.3"
+docopt = "0.8"
+serde = "1.0"
+serde_derive = "1.0"
 time = "0.1"
-glium = "0.15"
+glium = "0.16"
 imgui = { git = "https://github.com/Gekkio/imgui-rs" }
+imgui-glium-renderer = { git = "https://github.com/Gekkio/imgui-rs" }
+
+[profile.bench]
+opt-level = 3
+debug = false
+rpath = false
+lto = false
+debug-assertions = false

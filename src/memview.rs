@@ -1,4 +1,4 @@
-use imgui::{Ui, ImStr};
+use imgui::{Ui, ImString};
 
 pub struct MemoryEditor {
   open: bool,
@@ -13,18 +13,18 @@ impl MemoryEditor {
     }
   }
 
-  pub fn draw(&mut self, ui: &Ui, title: ImStr, mem: &[u8],
+  pub fn draw(&mut self, ui: &Ui, title: ImString, mem: &[u8],
               reads: &[u64], writes: &[u64]) {
     let columns = self.columns;
     let rows = mem.len() / columns;
 
-    ui.window(title)
+    ui.window(&title)
       .opened(&mut self.open)
       .build(|| {
         let mut a = 0;
 
         for _ in 0..rows {
-          ui.text(format!("{:04x}:", a).into());
+          ui.text(im_str!("{:04x}:", a));
           ui.same_line(0.0);
 
           for _ in 0..(columns-1) {
@@ -37,11 +37,11 @@ impl MemoryEditor {
               i => (0.0, 0.0, i as f32, 1.0),
             };
             ui.text_colored(mix(rcolor, wcolor),
-                            format!("{:02x}", mem[a]).into());
+                            im_str!("{:02x}", mem[a]));
             ui.same_line(0.0);
             a += 1;
           }
-          ui.text(format!("{:02x}", mem[a]).into());
+          ui.text(im_str!("{:02x}", mem[a]));
           a += 1;
         }
       });

@@ -1,24 +1,21 @@
-extern crate rustc_serialize;
 extern crate docopt;
+#[macro_use] extern crate imgui;
+extern crate imgui_glium_renderer;
+#[macro_use] extern crate glium;
+#[macro_use] extern crate serde_derive;
 extern crate time;
-#[macro_use]
-extern crate glium;
 
-#[macro_use]
-extern crate imgui;
 
 use std::io::prelude::*;
 use std::fs::File;
 
 use docopt::Docopt;
-
+use imgui::{ImGui, ImVec2, ImString};
+use glium::DisplayBuild;
+use glium::glutin::{self, Event, ElementState, MouseButton, MouseScrollDelta,
+                    VirtualKeyCode, TouchPhase};
 use time::{Duration, SteadyTime};
 
-use glium::glutin::{Event, ElementState, VirtualKeyCode, MouseButton,
-                    MouseScrollDelta, TouchPhase};
-use glium::DisplayBuild;
-
-use imgui::{ImGui, ImVec2};
 
 mod chip8;
 mod glscreen;
@@ -51,7 +48,7 @@ Options:
   -d, --debug             Show debug information.
 ";
 
-#[derive(RustcDecodable)]
+#[derive(Deserialize)]
 struct Args {
   arg_rom: String,
   flag_zoom: usize,
@@ -87,7 +84,7 @@ impl UiState {
 fn main() {
   // Process args
   let args: Args = Docopt::new(USAGE)
-    .and_then(|d| d.decode())
+    .and_then(|d| d.deserialize())
     .unwrap_or_else(|e| e.exit());
 
   // Time between each repaint
@@ -103,6 +100,7 @@ fn main() {
   let zoom = args.flag_zoom;
 
   let display = glium::glutin::WindowBuilder::new()
+    .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (2, 1)))
     .with_title("Chipers")
     .with_dimensions((screen::SCREEN_WIDTH * zoom) as u32,
                      (screen::SCREEN_HEIGHT * zoom) as u32)
@@ -110,7 +108,7 @@ fn main() {
 
   // Init ImGui
   let mut imgui = ImGui::init();
-  let mut imgui_renderer = imgui::glium_renderer::Renderer::init(
+  let mut imgui_renderer = imgui_glium_renderer::Renderer::init(
     &mut imgui, &display).unwrap();
 
   let mut ui_state = UiState::new();
@@ -287,15 +285,15 @@ fn main() {
       fps_history_idx += 1;
 
       ui.plot_histogram(
-        format!("frame time (ms)\navg: {:.3}ms\novertimes: {}",
-                avg_fps, overtimes).into(), &fps_history)
+        im_str!("frame time (ms)\navg: {:.3}ms\novertimes: {}",
+                avg_fps, overtimes), &fps_history)
         .values_offset(fps_history_idx)
         .graph_size(ImVec2::new(FPS_HISTORY_LENGTH as f32, 40.0))
         .scale_min(0.0)
         .scale_max(target_repaint_ms * 2.0)
         .build();
 
-      ui.text(format!("{}tps ({}x)", tps, tps / 60).into());
+      ui.text(im_str!("{}tps ({}x)", tps, tps / 60));
 
       // memview.draw(&ui, im_str!("Memory Editor"),
       //              &chip8.mem(), &chip8.ram_reads, &chip8.ram_writes);
@@ -303,13 +301,13 @@ fn main() {
 
       ui.window(im_str!("Registers"))
         .build(|| {
-          ui.text(format!("pc: {:02x}", chip8.cpu.pc).into());
-          ui.text(format!("i: {:02x}", chip8.cpu.i).into());
-          ui.text(format!("delay: {:02x}", chip8.cpu.delay_timer).into());
-          ui.text(format!("sound: {:02x}", chip8.cpu.sound_timer).into());
+          ui.text(im_str!("pc: {:02x}", chip8.cpu.pc));
+          ui.text(im_str!("i: {:02x}", chip8.cpu.i));
+          ui.text(im_str!("delay: {:02x}", chip8.cpu.delay_timer));
+          ui.text(im_str!("sound: {:02x}", chip8.cpu.sound_timer));
 
           for r in 0..chip8.cpu.v.len() {
-            ui.text(format!("v{}: {:02x}", r, chip8.cpu.v[r]).into());
+            ui.text(im_str!("v{}: {:02x}", r, chip8.cpu.v[r]));
           }
         });
 
