@@ -3,6 +3,9 @@ use chip8;
 pub const SCREEN_HEIGHT: usize = 32;
 pub const SCREEN_WIDTH: usize = 64;
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Simple logical screen implementation backed by a pixel array
+
 pub struct PixelScreen {
   pixels: [bool; SCREEN_HEIGHT * SCREEN_WIDTH],
 }

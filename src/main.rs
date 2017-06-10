@@ -7,7 +7,6 @@ extern crate time;
 
 mod chip8;
 mod glscreen;
-mod keyboard;
 mod memview;
 
 use std::fs::File;
@@ -22,10 +21,9 @@ use time::{Duration, SteadyTime};
 
 use chip8::Chip8;
 use chip8::cpu::{self, Cpu};
+use chip8::keyboard::SimpleKeyboard;
 use chip8::memory::WatchedRAM;
-use chip8::screen;
 use glscreen::GLScreen;
-use keyboard::SimpleKeyboard;
 use memview::MemoryEditor;
 
 const FPS_HISTORY_LENGTH: usize = 128;
@@ -100,8 +98,8 @@ fn main() {
   let display = glium::glutin::WindowBuilder::new()
     .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (2, 1)))
     .with_title("Chipers")
-    .with_dimensions((screen::SCREEN_WIDTH * zoom) as u32,
-                     (screen::SCREEN_HEIGHT * zoom) as u32)
+    .with_dimensions((glscreen::SCREEN_WIDTH * zoom) as u32,
+                     (glscreen::SCREEN_HEIGHT * zoom) as u32)
     .build_glium().unwrap();
 
   // Init ImGui

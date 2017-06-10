@@ -1,15 +1,16 @@
 use std::collections::VecDeque;
 
+use glium::{IndexBuffer, Program, Surface, VertexBuffer};
 use glium::backend::Facade;
 use glium::index::PrimitiveType;
-use glium::{Surface, VertexBuffer, IndexBuffer, Program};
-use glium::texture::{UncompressedFloatFormat, MipmapsOption};
-use glium::texture::texture2d::Texture2d;
+use glium::texture::{MipmapsOption, UncompressedFloatFormat};
 use glium::texture::pixel_buffer::PixelBuffer;
+use glium::texture::texture2d::Texture2d;
 use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
 
-use chip8::screen::{SCREEN_WIDTH, SCREEN_HEIGHT, PixelScreen};
 use chip8;
+use chip8::screen::PixelScreen;
+pub use chip8::screen::{SCREEN_WIDTH, SCREEN_HEIGHT};
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -17,6 +18,9 @@ struct Vertex {
   tex_coords: [f32; 2],
 }
 implement_vertex!(Vertex, position, tex_coords);
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// A screen backed by OpenGL surface
 
 pub struct GLScreen {
   screen: PixelScreen,
@@ -32,8 +36,8 @@ impl GLScreen {
   pub fn new<F: Facade>(display: &F) -> Self {
     let program = Program::from_source(
       display,
-      include_str!("shader/vertex-120.glsl"),
-      include_str!("shader/fragment-120.glsl"),
+      include_str!("shaders/vertex-120.glsl"),
+      include_str!("shaders/fragment-120.glsl"),
       None).unwrap();
 
     // One nice rectangle to hold the texture
@@ -152,7 +156,6 @@ impl GLScreen {
                &self.program,
                &uniforms, &Default::default()).unwrap();
   }
-
 }
 
 impl chip8::Screen for GLScreen {

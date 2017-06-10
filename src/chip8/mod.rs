@@ -1,6 +1,7 @@
 pub mod cpu;
 pub mod memory;
 pub mod screen;
+pub mod keyboard;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 // Traits used as interfaces for plugging different components into the machine
