@@ -1,31 +1,29 @@
 extern crate docopt;
+#[macro_use] extern crate glium;
 #[macro_use] extern crate imgui;
 extern crate imgui_glium_renderer;
-#[macro_use] extern crate glium;
 #[macro_use] extern crate serde_derive;
 extern crate time;
-
-
-use std::io::prelude::*;
-use std::fs::File;
-
-use docopt::Docopt;
-use imgui::{ImGui, ImVec2, ImString};
-use glium::DisplayBuild;
-use glium::glutin::{self, Event, ElementState, MouseButton, MouseScrollDelta,
-                    VirtualKeyCode, TouchPhase};
-use time::{Duration, SteadyTime};
-
 
 mod chip8;
 mod glscreen;
 mod keyboard;
 mod memview;
 
-use chip8::{Chip8, Memory};
-use chip8::cpu;
+use std::fs::File;
+use std::io::prelude::*;
+
+use docopt::Docopt;
+use glium::DisplayBuild;
+use glium::glutin::{self, ElementState, Event, MouseButton, MouseScrollDelta,
+                    TouchPhase, VirtualKeyCode};
+use imgui::{ImGui, ImVec2};
+use time::{Duration, SteadyTime};
+
+use chip8::Chip8;
+use chip8::cpu::{self, Cpu};
+use chip8::memory::WatchedRAM;
 use chip8::screen;
-use chip8::ram::WatchedRAM;
 use glscreen::GLScreen;
 use keyboard::SimpleKeyboard;
 use memview::MemoryEditor;
@@ -113,11 +111,10 @@ fn main() {
 
   let mut ui_state = UiState::new();
 
-  // Init Chip8
+  // Init Chip8 and components
   let mut screen = GLScreen::new(&display);
   let mut keyboard = SimpleKeyboard::new();
-
-  let mut chip8 = Chip8::new(WatchedRAM::new());
+  let mut chip8 = Chip8::new(Cpu::new(), WatchedRAM::new());
 
   let mut f = File::open(args.arg_rom)
     .expect("Error opening ROM");

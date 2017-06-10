@@ -2,17 +2,26 @@ use chip8;
 
 const RAM_LENGTH: usize = 0x1000;
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// A straightforward RAM array
+
 pub struct RAM {
   mem: [u8; RAM_LENGTH],
 }
 
-impl chip8::Memory for RAM {
-  fn new() -> Self {
+impl RAM {
+  pub fn new() -> Self {
     Self {
       mem: [0; RAM_LENGTH],
     }
   }
 
+  pub fn read_all(&self) -> &[u8] {
+    &self.mem[..]
+  }
+}
+
+impl chip8::Memory for RAM {
   fn reset(&mut self) {
     for c in self.mem.iter_mut() {
       *c = 0;
@@ -23,9 +32,6 @@ impl chip8::Memory for RAM {
     self.mem[addr]
   }
 
-  fn read_all(&mut self) -> &[u8] {
-    &self.mem[..]
-  }
 
   fn write(&mut self, addr: usize, v: u8) {
     self.mem[addr] = v;
@@ -36,14 +42,18 @@ impl chip8::Memory for RAM {
   }
 }
 
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// A RAM that keeps track of reads and writes for each address, useful for
+// debugging
+
 pub struct WatchedRAM {
   ram: RAM,
-  reads: [u64; RAM_LENGTH],
-  writes: [u64; RAM_LENGTH],
+  pub reads: [u64; RAM_LENGTH],
+  pub writes: [u64; RAM_LENGTH],
 }
 
-impl chip8::Memory for WatchedRAM {
-  fn new() -> Self {
+impl WatchedRAM {
+  pub fn new() -> Self {
     Self {
       ram: RAM::new(),
       reads: [0; RAM_LENGTH],
@@ -51,8 +61,7 @@ impl chip8::Memory for WatchedRAM {
     }
   }
 
-  fn reset(&mut self) {
-    self.ram.reset();
+  pub fn reset_reads_writes(&mut self) {
     for c in self.reads.iter_mut() {
       *c = 0;
     }
@@ -61,17 +70,20 @@ impl chip8::Memory for WatchedRAM {
     }
   }
 
+  pub fn read_all(&self) -> &[u8] {
+    // Don't keep track of reads here since the CPU cannot access it
+    self.ram.read_all()
+  }
+}
+
+impl chip8::Memory for WatchedRAM {
+  fn reset(&mut self) {
+    self.ram.reset();
+  }
+
   fn read(&mut self, addr: usize) -> u8 {
     self.reads[addr] += 1;
     self.ram.read(addr)
-
-  }
-
-  fn read_all(&mut self) -> &[u8] {
-    for addr in 0..RAM_LENGTH {
-      self.reads[addr] += 1;
-    }
-    self.ram.read_all()
   }
 
   fn write(&mut self, addr: usize, v: u8) {

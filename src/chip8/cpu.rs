@@ -1,9 +1,8 @@
 extern crate rand;
+
 use self::rand::{ThreadRng, Rng};
-
 use std::collections::VecDeque;
-
-use chip8::{Keyboard, Memory, Screen};
+use chip8::{self, Keyboard, Memory, Screen};
 
 const NUM_REGS: usize = 0x10;
 pub const CYCLES_PER_TICK: u64 = 10;
@@ -37,52 +36,11 @@ impl Cpu {
       rng: rand::thread_rng(),
     }
   }
+}
 
-  pub fn reset(&mut self) {
-    self.pc = 0x200;
-
-    for i in 0..NUM_REGS {
-      self.v[i] = 0;
-    }
-
-    self.i = 0;
-    self.delay_timer = 0;
-    self.sound_timer = 0;
-    self.stack.clear();
-    self.asleep = false;
-    self.key_register = 0;
-  }
-
-  fn step<M: Memory, S: Screen, K: Keyboard>
-    (&mut self, ram: &mut M, screen: &mut S, keyboard: &mut K) {
-    if self.asleep { return }
-
-    let pc = self.pc;
-
-    let opcode = (ram.read(pc as usize) as u16) << 8
-      | (ram.read((pc + 1) as usize) as u16);
-    self.pc += 2;
-
-    self.exec(opcode, ram, screen, keyboard);
-  }
-
-  pub fn tick<M: Memory, S: Screen, K: Keyboard>
-    (&mut self, ram: &mut M, screen: &mut S, keyboard: &mut K) {
-    for _ in 0..CYCLES_PER_TICK {
-      self.step(ram, screen, keyboard);
-    }
-
-    if self.delay_timer > 0 {
-      self.delay_timer -= 1;
-    }
-
-    if self.sound_timer > 0 {
-      self.sound_timer -= 1;
-    }
-  }
-
-  fn exec<M: Memory, S: Screen, K: Keyboard>
-    (&mut self, opcode: u16, ram: &mut M, screen: &mut S, keyboard: &mut K) {
+impl Cpu {
+  fn exec<M, S, K>(&mut self, opcode: u16, ram: &mut M, screen: &mut S,
+                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
     let addr = opcode & 0x0FFF;
     let x = ((opcode & 0x0F00) >> 8) as usize;
     let y = ((opcode & 0x00F0) >> 4) as usize;
@@ -235,6 +193,51 @@ impl Cpu {
       }
 
       _ => panic!("Unknown upcode {:x}", opcode)
+    }
+  }
+}
+
+impl chip8::CPU for Cpu {
+  fn reset(&mut self) {
+    self.pc = 0x200;
+
+    for i in 0..NUM_REGS {
+      self.v[i] = 0;
+    }
+
+    self.i = 0;
+    self.delay_timer = 0;
+    self.sound_timer = 0;
+    self.stack.clear();
+    self.asleep = false;
+    self.key_register = 0;
+  }
+
+  fn step<M, S, K>(&mut self, ram: &mut M, screen: &mut S,
+                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
+    if self.asleep { return }
+
+    let pc = self.pc;
+
+    let opcode = (ram.read(pc as usize) as u16) << 8
+      | (ram.read((pc + 1) as usize) as u16);
+    self.pc += 2;
+
+    self.exec(opcode, ram, screen, keyboard);
+  }
+
+  fn tick<M, S, K>(&mut self, ram: &mut M, screen: &mut S,
+                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard {
+    for _ in 0..CYCLES_PER_TICK {
+      self.step(ram, screen, keyboard);
+    }
+
+    if self.delay_timer > 0 {
+      self.delay_timer -= 1;
+    }
+
+    if self.sound_timer > 0 {
+      self.sound_timer -= 1;
     }
   }
 }

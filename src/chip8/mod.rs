@@ -1,8 +1,21 @@
+pub mod cpu;
+pub mod memory;
+pub mod screen;
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Traits used as interfaces for plugging different components into the machine
+
+pub trait CPU {
+  fn reset(&mut self);
+  fn step<M, S, K>(&mut self, mem: &mut M, screen: &mut S,
+                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard;
+  fn tick<M, S, K>(&mut self, mem: &mut M, screen: &mut S,
+                   keyboard: &mut K) where M: Memory, S: Screen, K: Keyboard;
+}
+
 pub trait Memory {
-  fn new() -> Self;
   fn reset(&mut self);
   fn read(&mut self, addr: usize) -> u8;
-  fn read_all(&mut self) -> &[u8];
   fn write(&mut self, addr: usize, v: u8);
   fn write_seq(&mut self, start: usize, bytes: &[u8]);
 }
@@ -16,22 +29,19 @@ pub trait Keyboard {
   fn is_key_down(&self, key: u8) -> bool;
 }
 
-pub mod cpu;
-pub mod ram;
-pub mod screen;
 
-use chip8::cpu::Cpu;
-use chip8::ram::RAM;
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+// Top-level machine
 
-pub struct Chip8<M: Memory> {
-  pub cpu: Cpu,
-  ram: M,
+pub struct Chip8<C: CPU, M: Memory> {
+  pub cpu: C,
+  pub ram: M,
 }
 
-impl<M: Memory> Chip8<M> {
-  pub fn new(ram: M) -> Self {
+impl<C: CPU, M: Memory> Chip8<C, M> {
+  pub fn new(cpu: C, ram: M) -> Self {
     Self {
-      cpu: Cpu::new(),
+      cpu,
       ram,
     }
   }
@@ -69,14 +79,13 @@ impl<M: Memory> Chip8<M> {
     self.ram.write_seq(0x200, &rom);
   }
 
-  pub fn tick<S: Screen, K: Keyboard>
-    (&mut self, screen: &mut S, keyboard: &mut K) {
-    self.cpu.tick(&mut self.ram, screen, keyboard);
-    }
-
-  pub fn mem(&mut self) -> &[u8] {
-    self.ram.read_all()
+  pub fn step<S, K>(&mut self, screen: &mut S,
+                    keyboard: &mut K) where S: Screen, K: Keyboard {
+    self.cpu.step(&mut self.ram, screen, keyboard);
   }
 
-
+  pub fn tick<S, K>(&mut self, screen: &mut S,
+                    keyboard: &mut K) where S: Screen, K: Keyboard {
+    self.cpu.tick(&mut self.ram, screen, keyboard);
+  }
 }
