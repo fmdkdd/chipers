@@ -8,11 +8,11 @@ const NUM_REGS: usize = 0x10;
 
 pub struct Cpu {
   pub v: [u8; NUM_REGS],
-  pub pc: u16,
+  pub pc: usize,
   pub i: u16,
   pub delay_timer: u8,
   pub sound_timer: u8,
-  stack: VecDeque<u16>,
+  stack: VecDeque<usize>,
   waiting_for_key: bool,
   key_register: usize,
 
@@ -56,11 +56,11 @@ impl Cpu {
         _ => panic!("Unknown upcode {:x}", opcode)
       },
 
-      0x1000 => self.pc = addr,
+      0x1000 => self.pc = addr as usize,
 
       0x2000 => {
         self.stack.push_front(self.pc);
-        self.pc = addr;
+        self.pc = addr as usize;
       },
 
       0x3000 => if self.v[x] == kk { self.pc += 2 },
@@ -108,7 +108,7 @@ impl Cpu {
 
       0xA000 => self.i = addr,
 
-      0xB000 => self.pc = addr + (self.v[0] as u16),
+      0xB000 => self.pc = (addr + (self.v[0] as u16)) as usize,
 
       0xC000 => {
         let r : u8 = self.rng.gen();
@@ -223,10 +223,8 @@ impl chip8::CPU for Cpu {
       return
     }
 
-    let pc = self.pc;
-
-    let opcode = (ram.read(pc as usize) as u16) << 8
-      | (ram.read((pc + 1) as usize) as u16);
+    let opcode = ((ram.read(self.pc) as u16) << 8)
+      | (ram.read(self.pc + 1) as u16);
     self.pc += 2;
 
     self.exec(opcode, ram, screen, keyboard);
