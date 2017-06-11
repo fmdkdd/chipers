@@ -250,13 +250,13 @@ fn main() {
         .scale_max(target_repaint_ms * 2.0)
         .build();
 
-      // Going for nanoseconds otherwise we'll get zero!
+      // Going for nanoseconds otherwise we'll get zero for low CPU frequencies!
       let emu_dt_ms = emu_dt.num_nanoseconds().unwrap() as f32 / 1_000_000.0;
-      cps_history[cps_history_idx] = real_dt_ms / emu_dt_ms * 1000.0;
+      cps_history[cps_history_idx] = real_dt_ms / emu_dt_ms;
       cps_history_idx = (cps_history_idx + 1) % CPS_HISTORY_LENGTH;
 
       ui.plot_histogram(
-        im_str!("chip8 per second\navg: {:.3}cps", avg_cps), &cps_history)
+        im_str!("chip8 per second\navg: {:.1}cps", avg_cps), &cps_history)
         .values_offset(cps_history_idx)
         .graph_size(ImVec2::new(CPS_HISTORY_LENGTH as f32, 40.0))
         .scale_min(0.0)
