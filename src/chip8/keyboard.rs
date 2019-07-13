@@ -1,5 +1,3 @@
-use chip8;
-
 const NUM_KEYS: usize = 0x10;
 
 pub struct SimpleKeyboard {
@@ -22,7 +20,7 @@ impl SimpleKeyboard {
   }
 }
 
-impl chip8::Keyboard for SimpleKeyboard {
+impl crate::chip8::Keyboard for SimpleKeyboard {
   fn is_pressed(&self, key: u8) -> bool {
     self.pressed_keys[key as usize]
   }

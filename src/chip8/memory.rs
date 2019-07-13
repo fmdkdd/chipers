@@ -1,5 +1,3 @@
-use chip8;
-
 const RAM_LENGTH: usize = 0x1000;
 
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -21,7 +19,7 @@ impl RAM {
   }
 }
 
-impl chip8::Memory for RAM {
+impl crate::chip8::Memory for RAM {
   fn reset(&mut self) {
     for c in self.mem.iter_mut() {
       *c = 0;
@@ -76,7 +74,7 @@ impl WatchedRAM {
   }
 }
 
-impl chip8::Memory for WatchedRAM {
+impl crate::chip8::Memory for WatchedRAM {
   fn reset(&mut self) {
     self.ram.reset();
   }

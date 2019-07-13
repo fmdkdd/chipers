@@ -1,4 +1,4 @@
-use imgui::{Ui, ImStr};
+use imgui::{Ui, ImStr, im_str, Window};
 
 pub struct MemoryEditor {
   open: bool,
@@ -41,16 +41,15 @@ impl MemoryEditor {
             ui.same_line(0.0);
             a += 1;
           }
-          ui.text(im_str!("{:02x}", mem[a]));
-          a += 1;
+          ui.text(im_str!(""));
         }
       });
   }
 }
 
-fn mix(a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)) -> (f32, f32, f32, f32) {
-  (((a.0 + b.0) / 2.0),
-   ((a.1 + b.1) / 2.0),
-   ((a.2 + b.2) / 2.0),
-   ((a.3 + b.3) / 2.0))
+fn mix(a: (f32, f32, f32, f32), b: (f32, f32, f32, f32)) -> [f32; 4] {
+  [(a.0 + b.0) / 2.0,
+   (a.1 + b.1) / 2.0,
+   (a.2 + b.2) / 2.0,
+   (a.3 + b.3) / 2.0]
 }

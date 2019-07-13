@@ -7,10 +7,10 @@ use glium::texture::{MipmapsOption, UncompressedFloatFormat};
 use glium::texture::pixel_buffer::PixelBuffer;
 use glium::texture::texture2d::Texture2d;
 use glium::uniforms::{MagnifySamplerFilter, MinifySamplerFilter};
+use glium::{implement_vertex, uniform};
 
-use chip8;
-use chip8::screen::PixelScreen;
-pub use chip8::screen::{SCREEN_WIDTH, SCREEN_HEIGHT};
+use crate::chip8::{Screen, screen::PixelScreen};
+pub use crate::chip8::screen::{SCREEN_WIDTH, SCREEN_HEIGHT};
 
 #[derive(Copy, Clone)]
 struct Vertex {
@@ -176,7 +176,7 @@ impl GLScreen {
   }
 }
 
-impl chip8::Screen for GLScreen {
+impl Screen for GLScreen {
   fn clear(&mut self) {
     self.screen.clear();
   }

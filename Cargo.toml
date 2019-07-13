@@ -2,16 +2,18 @@
 name = "chipers"
 version = "0.1.0"
 authors = ["fmdkdd"]
+edition = "2018"
 
 [dependencies]
-rand = "0.3"
-docopt = "0.8"
+rand = "0.7"
+docopt = "1.0"
 serde = "1.0"
 serde_derive = "1.0"
 time = "0.1"
-glium = "0.16"
-imgui = { git = "https://github.com/Gekkio/imgui-rs" }
-imgui-glium-renderer = { git = "https://github.com/Gekkio/imgui-rs" }
+glium = "*"
+imgui = "0.1"
+imgui-glium-renderer = "0.1"
+imgui-winit-support = "0.1"
 
 [profile.bench]
 opt-level = 3

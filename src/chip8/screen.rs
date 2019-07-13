@@ -1,5 +1,3 @@
-use chip8;
-
 pub const SCREEN_HEIGHT: usize = 32;
 pub const SCREEN_WIDTH: usize = 64;
 
@@ -34,7 +32,7 @@ impl PixelScreen {
 }
 
 
-impl chip8::Screen for PixelScreen {
+impl crate::chip8::Screen for PixelScreen {
   fn clear(&mut self) {
     for p in self.pixels.iter_mut() {
       *p = 0

@@ -1,10 +1,3 @@
-extern crate docopt;
-#[macro_use] extern crate glium;
-#[macro_use] extern crate imgui;
-extern crate imgui_glium_renderer;
-#[macro_use] extern crate serde_derive;
-extern crate time;
-
 mod chip8;
 mod glscreen;
 mod memview;
@@ -13,14 +6,16 @@ use std::fs::File;
 use std::io::prelude::*;
 
 use docopt::Docopt;
-use glium::DisplayBuild;
-use glium::glutin::{self, ElementState, Event, MouseButton, MouseScrollDelta,
-                    TouchPhase, VirtualKeyCode};
-use imgui::{ImGui, ImVec2};
+use glium::{Surface, glutin::{self, VirtualKeyCode}};
+use imgui::{Context, im_str, Window};
+use imgui_glium_renderer::Renderer;
+use imgui_winit_support::{HiDpiMode, WinitPlatform};
+use serde::Deserialize;
 use time::{Duration, SteadyTime};
+use std::time::Instant;
 
 use chip8::Chip8;
-use chip8::cpu::{self, Cpu};
+use chip8::cpu::Cpu;
 use chip8::keyboard::SimpleKeyboard;
 use chip8::memory::WatchedRAM;
 use glscreen::GLScreen;
@@ -58,29 +53,6 @@ struct Args {
   flag_debug: bool,
 }
 
-struct UiState {
-  mouse_pos: (i32, i32),
-  mouse_pressed: (bool, bool, bool),
-  mouse_wheel: f32,
-}
-
-impl UiState {
-  fn new() -> UiState {
-    UiState {
-      mouse_pos: (0,0),
-      mouse_pressed: (false, false, false),
-      mouse_wheel: 0.0,
-    }
-  }
-
-  fn update_mouse(&self, imgui: &mut ImGui) {
-    imgui.set_mouse_pos(self.mouse_pos.0 as f32, self.mouse_pos.1 as f32);
-    imgui.set_mouse_down(&[self.mouse_pressed.0, self.mouse_pressed.1,
-                           self.mouse_pressed.2, false, false]);
-    imgui.set_mouse_wheel(self.mouse_wheel);
-  }
-}
-
 fn main() {
   // Process args
   let args: Args = Docopt::new(USAGE)
@@ -95,19 +67,26 @@ fn main() {
   // Init Glium
   let zoom = args.flag_zoom;
 
-  let display = glium::glutin::WindowBuilder::new()
-    .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (2, 1)))
+  let mut events_loop = glium::glutin::EventsLoop::new();
+  let wb = glium::glutin::WindowBuilder::new()
     .with_title("Chipers")
-    .with_dimensions((glscreen::SCREEN_WIDTH * zoom) as u32,
-                     (glscreen::SCREEN_HEIGHT * zoom) as u32)
-    .build_glium().unwrap();
+    .with_dimensions(((glscreen::SCREEN_WIDTH * zoom) as u32,
+                      (glscreen::SCREEN_HEIGHT * zoom) as u32).into());
+  let cb = glium::glutin::ContextBuilder::new();
+//    .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (2, 1)));
+  let display = glium::Display::new(wb, cb, &events_loop).unwrap();
 
   // Init ImGui
-  let mut imgui = ImGui::init();
-  let mut imgui_renderer = imgui_glium_renderer::Renderer::init(
-    &mut imgui, &display).unwrap();
+  let mut imgui = Context::create();
+  let mut platform = WinitPlatform::init(&mut imgui);
+  let gl_window = display.gl_window();
+  let window = gl_window.window();
+  platform.attach_window(imgui.io_mut(), &window, HiDpiMode::Rounded);
 
-  let mut ui_state = UiState::new();
+  imgui.io_mut().font_global_scale = (1.0 / platform.hidpi_factor()) as f32;
+
+  let mut renderer = Renderer::init(&mut imgui, &display)
+    .expect("Failed to initialize renderer");
 
   // Init Chip8 and components
   let mut screen = GLScreen::new(&display, args.flag_plain);
@@ -141,80 +120,84 @@ fn main() {
   let mut last_repaint = SteadyTime::now();
   let tick_slack = Duration::microseconds(100);
   let sleep_slack = Duration::microseconds(500);
+  let mut quit = false;
 
   'running: loop {
     // Handle any key/mouse events
-    for event in display.poll_events() {
-      match event {
-        Event::Closed
-          | Event::KeyboardInput(ElementState::Pressed, _, Some(VirtualKeyCode::Escape))
-          => { break 'running },
+    events_loop.poll_events(|event| {
+      use glutin::{Event, KeyboardInput, WindowEvent};
 
-        Event::KeyboardInput(ElementState::Pressed, _, Some(vkey)) => {
-          match vkey {
-            VirtualKeyCode::Key1 => keyboard.press_key(0x1),
-            VirtualKeyCode::Key2 => keyboard.press_key(0x2),
-            VirtualKeyCode::Key3 => keyboard.press_key(0x3),
-            VirtualKeyCode::Q    => keyboard.press_key(0x4),
-            VirtualKeyCode::W    => keyboard.press_key(0x5),
-            VirtualKeyCode::F    => keyboard.press_key(0x6),
-            VirtualKeyCode::A    => keyboard.press_key(0x7),
-            VirtualKeyCode::R    => keyboard.press_key(0x8),
-            VirtualKeyCode::S    => keyboard.press_key(0x9),
-            VirtualKeyCode::Z    => keyboard.press_key(0x0),
-            VirtualKeyCode::X    => keyboard.press_key(0xA),
-            VirtualKeyCode::C    => keyboard.press_key(0xB),
-            VirtualKeyCode::Key4 => keyboard.press_key(0xC),
-            VirtualKeyCode::P    => keyboard.press_key(0xD),
-            VirtualKeyCode::T    => keyboard.press_key(0xE),
-            VirtualKeyCode::V    => keyboard.press_key(0xF),
+      platform.handle_event(imgui.io_mut(), &window, &event);
 
-            _ => ()
+      if let Event::WindowEvent { event, .. } = event {
+        match event {
+          WindowEvent::CloseRequested => { quit = true },
+
+          WindowEvent::KeyboardInput { input, .. } => {
+            use glutin::ElementState::{Pressed, Released};
+
+            match input {
+              KeyboardInput { state: Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. }
+              => { quit = true },
+
+              KeyboardInput { state: Pressed, virtual_keycode: Some(vkey), .. } => {
+                match vkey {
+                  VirtualKeyCode::Key1 => keyboard.press_key(0x1),
+                  VirtualKeyCode::Key2 => keyboard.press_key(0x2),
+                  VirtualKeyCode::Key3 => keyboard.press_key(0x3),
+                  VirtualKeyCode::Q    => keyboard.press_key(0x4),
+                  VirtualKeyCode::W    => keyboard.press_key(0x5),
+                  VirtualKeyCode::F    => keyboard.press_key(0x6),
+                  VirtualKeyCode::A    => keyboard.press_key(0x7),
+                  VirtualKeyCode::R    => keyboard.press_key(0x8),
+                  VirtualKeyCode::S    => keyboard.press_key(0x9),
+                  VirtualKeyCode::Z    => keyboard.press_key(0x0),
+                  VirtualKeyCode::X    => keyboard.press_key(0xA),
+                  VirtualKeyCode::C    => keyboard.press_key(0xB),
+                  VirtualKeyCode::Key4 => keyboard.press_key(0xC),
+                  VirtualKeyCode::P    => keyboard.press_key(0xD),
+                  VirtualKeyCode::T    => keyboard.press_key(0xE),
+                  VirtualKeyCode::V    => keyboard.press_key(0xF),
+
+                  _ => ()
+                }
+              },
+
+              KeyboardInput { state: Released, virtual_keycode: Some(vkey), .. } => {
+                match vkey {
+                  VirtualKeyCode::Key1 => keyboard.release_key(0x1),
+                  VirtualKeyCode::Key2 => keyboard.release_key(0x2),
+                  VirtualKeyCode::Key3 => keyboard.release_key(0x3),
+                  VirtualKeyCode::Q    => keyboard.release_key(0x4),
+                  VirtualKeyCode::W    => keyboard.release_key(0x5),
+                  VirtualKeyCode::F    => keyboard.release_key(0x6),
+                  VirtualKeyCode::A    => keyboard.release_key(0x7),
+                  VirtualKeyCode::R    => keyboard.release_key(0x8),
+                  VirtualKeyCode::S    => keyboard.release_key(0x9),
+                  VirtualKeyCode::Z    => keyboard.release_key(0x0),
+                  VirtualKeyCode::X    => keyboard.release_key(0xA),
+                  VirtualKeyCode::C    => keyboard.release_key(0xB),
+                  VirtualKeyCode::Key4 => keyboard.release_key(0xC),
+                  VirtualKeyCode::P    => keyboard.release_key(0xD),
+                  VirtualKeyCode::T    => keyboard.release_key(0xE),
+                  VirtualKeyCode::V    => keyboard.release_key(0xF),
+
+                  _ => ()
+                }
+              },
+
+              _ => ()
+            }
           }
-        },
 
-        Event::KeyboardInput(ElementState::Released, _, Some(vkey)) => {
-          match vkey {
-            VirtualKeyCode::Key1 => keyboard.release_key(0x1),
-            VirtualKeyCode::Key2 => keyboard.release_key(0x2),
-            VirtualKeyCode::Key3 => keyboard.release_key(0x3),
-            VirtualKeyCode::Q    => keyboard.release_key(0x4),
-            VirtualKeyCode::W    => keyboard.release_key(0x5),
-            VirtualKeyCode::F    => keyboard.release_key(0x6),
-            VirtualKeyCode::A    => keyboard.release_key(0x7),
-            VirtualKeyCode::R    => keyboard.release_key(0x8),
-            VirtualKeyCode::S    => keyboard.release_key(0x9),
-            VirtualKeyCode::Z    => keyboard.release_key(0x0),
-            VirtualKeyCode::X    => keyboard.release_key(0xA),
-            VirtualKeyCode::C    => keyboard.release_key(0xB),
-            VirtualKeyCode::Key4 => keyboard.release_key(0xC),
-            VirtualKeyCode::P    => keyboard.release_key(0xD),
-            VirtualKeyCode::T    => keyboard.release_key(0xE),
-            VirtualKeyCode::V    => keyboard.release_key(0xF),
-
-            _ => ()
-          }
-        },
-
-        Event::MouseMoved(x, y) => ui_state.mouse_pos = (x, y),
-        Event::MouseInput(state, MouseButton::Left) =>
-          ui_state.mouse_pressed.0 = state == ElementState::Pressed,
-        Event::MouseInput(state, MouseButton::Right) =>
-          ui_state.mouse_pressed.1 = state == ElementState::Pressed,
-        Event::MouseInput(state, MouseButton::Middle) =>
-          ui_state.mouse_pressed.2 = state == ElementState::Pressed,
-        Event::MouseWheel(MouseScrollDelta::LineDelta(_, y), TouchPhase::Moved) =>
-          ui_state.mouse_wheel = y,
-        Event::MouseWheel(MouseScrollDelta::PixelDelta(_, y), TouchPhase::Moved) =>
-          ui_state.mouse_wheel = y,
-
-        _ => {}
+          _ => {}
+        }
       }
-    }
+    });
 
-    // Update imgui mouse state
-    ui_state.update_mouse(&mut imgui);
-    ui_state.mouse_wheel = 0.0; // Clear value for this frame
+    if quit {
+      break 'running;
+    }
 
     // How much time has elapsed since last frame?
     let now = SteadyTime::now();
@@ -233,19 +216,21 @@ fn main() {
 
     // Fill the debugging GUI if enabled
     if args.flag_debug {
-      let window = display.get_window().unwrap();
-      let size_points = window.get_inner_size_points().unwrap();
-      let size_pixels = window.get_inner_size_pixels().unwrap();
-      let ui = imgui.frame(size_points, size_pixels, real_dt_ms / 1000.0);
+      let io = imgui.io_mut();
+      platform
+        .prepare_frame(io, &window)
+        .expect("Failed to start frame");
+      io.update_delta_time(Instant::now());
+      let ui = imgui.frame();
 
       tpf_history[tpf_history_idx] = real_dt_ms;
       tpf_history_idx = (tpf_history_idx + 1) % TPF_HISTORY_LENGTH;
 
       ui.plot_histogram(
-        im_str!("time per frame (ms)\navg: {:.3}ms\novertimes: {}",
-                avg_tpf, overtimes), &tpf_history)
+        &im_str!("time per frame (ms)\navg: {:.3}ms\novertimes: {}",
+                 avg_tpf, overtimes), &tpf_history)
         .values_offset(tpf_history_idx)
-        .graph_size(ImVec2::new(TPF_HISTORY_LENGTH as f32, 40.0))
+        .graph_size([TPF_HISTORY_LENGTH as f32, 40.0])
         .scale_min(0.0)
         .scale_max(target_repaint_ms * 2.0)
         .build();
@@ -256,9 +241,9 @@ fn main() {
       cps_history_idx = (cps_history_idx + 1) % CPS_HISTORY_LENGTH;
 
       ui.plot_histogram(
-        im_str!("chip8 per second\navg: {:.1}cps", avg_cps), &cps_history)
+        &im_str!("chip8 per second\navg: {:.1}cps", avg_cps), &cps_history)
         .values_offset(cps_history_idx)
-        .graph_size(ImVec2::new(CPS_HISTORY_LENGTH as f32, 40.0))
+        .graph_size([CPS_HISTORY_LENGTH as f32, 40.0])
         .scale_min(0.0)
         .scale_max(avg_cps * 2.0)
         .build();
@@ -290,7 +275,9 @@ fn main() {
         tpf_refresh_counter -= TPF_REFRESH_PERIOD;
       }
 
-      imgui_renderer.render(&mut frame, ui).unwrap();
+      platform.prepare_render(&ui, &window);
+      let draw_data = ui.render();
+      renderer.render(&mut frame, draw_data).unwrap();
     }
 
     // Send to GPU

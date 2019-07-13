@@ -1,8 +1,6 @@
-extern crate rand;
-
-use self::rand::{ThreadRng, Rng};
+use rand::{rngs::ThreadRng, Rng};
 use std::collections::VecDeque;
-use chip8::{self, Keyboard, Memory, Screen};
+use crate::chip8::{Keyboard, Memory, Screen};
 
 const NUM_REGS: usize = 0x10;
 
@@ -196,7 +194,7 @@ impl Cpu {
   }
 }
 
-impl chip8::CPU for Cpu {
+impl crate::chip8::CPU for Cpu {
   fn reset(&mut self) {
     self.pc = 0x200;
 
