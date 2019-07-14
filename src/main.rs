@@ -72,8 +72,8 @@ fn main() {
     .with_title("Chipers")
     .with_dimensions(((glscreen::SCREEN_WIDTH * zoom) as u32,
                       (glscreen::SCREEN_HEIGHT * zoom) as u32).into());
-  let cb = glium::glutin::ContextBuilder::new();
-//    .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (2, 1)));
+  let cb = glium::glutin::ContextBuilder::new()
+    .with_gl(glutin::GlRequest::Specific(glutin::Api::OpenGl, (2, 1)));
   let display = glium::Display::new(wb, cb, &events_loop).unwrap();
 
   // Init ImGui
@@ -121,6 +121,7 @@ fn main() {
   let tick_slack = Duration::microseconds(100);
   let sleep_slack = Duration::microseconds(500);
   let mut quit = false;
+  let mut total_frames = 0;
 
   'running: loop {
     // Handle any key/mouse events
@@ -209,86 +210,109 @@ fn main() {
     let before_emu = SteadyTime::now();
     chip8.run(real_dt_ms, &mut screen, &mut keyboard);
     let emu_dt = SteadyTime::now() - before_emu;
+    total_frames += 1;
 
-    // Create frame and render
-    let mut frame = display.draw();
-    screen.repaint(&mut frame);
+    // Write mem reads/writes to PBM
+    // println!("#");
+    // println!("P3\n64 64\n255");
 
-    // Fill the debugging GUI if enabled
-    if args.flag_debug {
-      let io = imgui.io_mut();
-      platform
-        .prepare_frame(io, &window)
-        .expect("Failed to start frame");
-      io.update_delta_time(Instant::now());
-      let ui = imgui.frame();
+    // // Scale read/write counters to [0,255]
+    // let rscale = 255.0 / (*chip8.ram.reads.iter().max().unwrap() as f32);
+    // let wscale = 255.0 / (*chip8.ram.writes.iter().max().unwrap() as f32);
 
-      tpf_history[tpf_history_idx] = real_dt_ms;
-      tpf_history_idx = (tpf_history_idx + 1) % TPF_HISTORY_LENGTH;
-
-      ui.plot_histogram(
-        &im_str!("time per frame (ms)\navg: {:.3}ms\novertimes: {}",
-                 avg_tpf, overtimes), &tpf_history)
-        .values_offset(tpf_history_idx)
-        .graph_size([TPF_HISTORY_LENGTH as f32, 40.0])
-        .scale_min(0.0)
-        .scale_max(target_repaint_ms * 2.0)
-        .build();
-
-      // Going for nanoseconds otherwise we'll get zero for low CPU frequencies!
-      let emu_dt_ms = emu_dt.num_nanoseconds().unwrap() as f32 / 1_000_000.0;
-      cps_history[cps_history_idx] = real_dt_ms / emu_dt_ms;
-      cps_history_idx = (cps_history_idx + 1) % CPS_HISTORY_LENGTH;
-
-      ui.plot_histogram(
-        &im_str!("chip8 per second\navg: {:.1}cps", avg_cps), &cps_history)
-        .values_offset(cps_history_idx)
-        .graph_size([CPS_HISTORY_LENGTH as f32, 40.0])
-        .scale_min(0.0)
-        .scale_max(avg_cps * 2.0)
-        .build();
-
-      memview.draw(&ui, im_str!("Memory Editor"),
-                   &chip8.ram.read_all(), &chip8.ram.reads, &chip8.ram.writes);
-      chip8.ram.reset_reads_writes();
-
-      ui.window(im_str!("Registers"))
-        .build(|| {
-          ui.text(im_str!("pc: {:02x}", chip8.cpu.pc));
-          ui.text(im_str!("i: {:02x}", chip8.cpu.i));
-          ui.text(im_str!("delay: {:02x}", chip8.cpu.delay_timer));
-          ui.text(im_str!("sound: {:02x}", chip8.cpu.sound_timer));
-
-          for r in 0..chip8.cpu.v.len() {
-            ui.text(im_str!("v{}: {:02x}", r, chip8.cpu.v[r]));
-          }
-        });
-
-      // Update TPF and CPS averages every second
-      tpf_refresh_counter += real_dt_ms;
-      while tpf_refresh_counter > TPF_REFRESH_PERIOD {
-        avg_tpf = tpf_history.iter().fold(0f32, |a, &b| a + b)
-          / TPF_HISTORY_LENGTH as f32;
-        avg_cps = cps_history.iter().fold(0f32, |a, &b| a + b)
-          / CPS_HISTORY_LENGTH as f32;
-
-        tpf_refresh_counter -= TPF_REFRESH_PERIOD;
-      }
-
-      platform.prepare_render(&ui, &window);
-      let draw_data = ui.render();
-      renderer.render(&mut frame, draw_data).unwrap();
+    // for i in 0..chip8.ram.reads.len() {
+    //   print!("{} 0 {} ",
+    //          ((chip8.ram.reads[i] as f32) * rscale) as u8,
+    //          ((chip8.ram.writes[i] as f32) * wscale) as u8);
+    // }
+    // chip8.ram.reset_reads_writes();
+    if total_frames > 600 {
+      break 'running;
     }
 
-    // Send to GPU
-    frame.finish().unwrap();
+    // Create frame and render
+    if !args.flag_turbo {
+      let mut frame = display.draw();
+      screen.repaint(&mut frame);
 
-    // // In turbo mode, use the remaining time to emulate as much as possible.
+      // Fill the debugging GUI if enabled
+      if args.flag_debug {
+        let io = imgui.io_mut();
+        platform
+          .prepare_frame(io, &window)
+          .expect("Failed to start frame");
+        io.update_delta_time(Instant::now());
+        let ui = imgui.frame();
+
+        tpf_history[tpf_history_idx] = real_dt_ms;
+        tpf_history_idx = (tpf_history_idx + 1) % TPF_HISTORY_LENGTH;
+
+        ui.plot_histogram(
+          &im_str!("time per frame (ms)\navg: {:.3}ms\novertimes: {}",
+                   avg_tpf, overtimes), &tpf_history)
+          .values_offset(tpf_history_idx)
+          .graph_size([TPF_HISTORY_LENGTH as f32, 40.0])
+          .scale_min(0.0)
+          .scale_max(target_repaint_ms * 2.0)
+          .build();
+
+        // Going for nanoseconds otherwise we'll get zero for low CPU frequencies!
+        let emu_dt_ms = emu_dt.num_nanoseconds().unwrap() as f32 / 1_000_000.0;
+        cps_history[cps_history_idx] = real_dt_ms / emu_dt_ms;
+        cps_history_idx = (cps_history_idx + 1) % CPS_HISTORY_LENGTH;
+
+        ui.plot_histogram(
+          &im_str!("chip8 per second\navg: {:.1}cps", avg_cps), &cps_history)
+          .values_offset(cps_history_idx)
+          .graph_size([CPS_HISTORY_LENGTH as f32, 40.0])
+          .scale_min(0.0)
+          .scale_max(avg_cps * 2.0)
+          .build();
+
+        memview.draw(&ui, im_str!("Memory Editor"),
+                     &chip8.ram.read_all(), &chip8.ram.reads, &chip8.ram.writes);
+        // chip8.ram.reset_reads_writes();
+
+        ui.window(im_str!("Registers"))
+          .build(|| {
+            ui.text(im_str!("pc: {:02x}", chip8.cpu.pc));
+            ui.text(im_str!("i: {:02x}", chip8.cpu.i));
+            ui.text(im_str!("delay: {:02x}", chip8.cpu.delay_timer));
+            ui.text(im_str!("sound: {:02x}", chip8.cpu.sound_timer));
+
+            for r in 0..chip8.cpu.v.len() {
+              ui.text(im_str!("v{}: {:02x}", r, chip8.cpu.v[r]));
+            }
+          });
+
+        // Update TPF and CPS averages every second
+        tpf_refresh_counter += real_dt_ms;
+        while tpf_refresh_counter > TPF_REFRESH_PERIOD {
+          avg_tpf = tpf_history.iter().fold(0f32, |a, &b| a + b)
+            / TPF_HISTORY_LENGTH as f32;
+          avg_cps = cps_history.iter().fold(0f32, |a, &b| a + b)
+            / CPS_HISTORY_LENGTH as f32;
+
+          tpf_refresh_counter -= TPF_REFRESH_PERIOD;
+        }
+
+        platform.prepare_render(&ui, &window);
+        let draw_data = ui.render();
+        renderer.render(&mut frame, draw_data).unwrap();
+      }
+
+      // Send to GPU
+      frame.finish().unwrap();
+    }
+
+    // // // In turbo mode, use the remaining time to emulate as much as possible.
     // if args.flag_turbo {
     //   // Get close to the repaint interval, but leave room to avoid
     //   // overshooting.
+    //   let mut since_last_repaint = real_dt;
     //   while since_last_repaint < (target_repaint_interval - tick_slack) {
-    //     chip8.run(&mut screen, &mut keyboard);
+    //     let dt_ms = since_last_repaint.num_microseconds().unwrap() as f32 / 1000.0;
+    //     chip8.run(dt_ms, &mut screen, &mut keyboard);
     //     since_last_repaint = SteadyTime::now() - last_repaint;
     //   }
     // }
@@ -320,5 +344,18 @@ fn main() {
 
     // last_repaint = SteadyTime::now();
 
+  }
+
+  // Write mem reads/writes to PBM
+  println!("P3\n64 64\n255");
+
+  // Scale read/write counters to [0,255]
+  let rscale = 255.0 / (*chip8.ram.reads.iter().max().unwrap() as f32);
+  let wscale = 255.0 / (*chip8.ram.writes.iter().max().unwrap() as f32);
+
+  for i in 0..chip8.ram.reads.len() {
+    print!("{} 0 {} ",
+           ((chip8.ram.reads[i] as f32) * rscale) as u8,
+           ((chip8.ram.writes[i] as f32) * wscale) as u8);
   }
 }
